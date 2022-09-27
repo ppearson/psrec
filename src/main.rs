@@ -24,9 +24,15 @@ struct MainArgs {
     #[argh(switch, short = 'a')]
     absolute_timestamps: bool,
 
-    #[argh(option)]
-    /// whether to output peak RSS values (a high-watermark of memory usage)
-    peak_rss: Option<bool>,
+    /// whether to record cpu usage as Absolute quantities, instead of Normalised quantities (default).
+    /// Absolute will scale over 100.0 for the number of threads, so 800.0 will be 8 threads using full CPU.
+    /// Normalised will be normalised to 100.0, so instead of 800.0 in the above example, it will be 100.0.
+    #[argh(switch)]
+    absolute_cpu_usage: bool,
+
+    /// whether to print out values live as process is being recorded to stderr
+    #[argh(switch)]
+    print_values: bool,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -53,29 +59,51 @@ struct SubCommandStart {
 /// Attach to an existing process.
 #[argh(subcommand, name = "attach")]
 struct SubCommandAttach {
-    #[argh(option)]
+    #[argh(positional)]
     /// PID of process to attach to and record
-    pid: i32,
+    pid: u32,
 }
 
 
 fn main() {
     let args: MainArgs = argh::from_env();
 
-    if let SubCommandEnum::Start(start) = args.command {
-        eprintln!("Starting process: {}", start.command);
-    
-        let params = ProcessRecordParams::new();
+    let mut record_params = ProcessRecordParams::new();
 
-        let mut recorder: Option<ProcessRecorderRun> = ProcessRecorderRun::new(&start.command, Some(start.args.clone()), &params);
+    // TODO: something better than this... pass in args to ProcessRecordParams?
+    //       or at least encapsulate it somewhere...
+    if let Some(interval) = args.interval {
+        record_params.set_sample_interval(interval as u64);
+    }
+    if args.print_values {
+        record_params.set_print_values(true);
+    }
+
+    if let SubCommandEnum::Attach(attach) = args.command {
+        eprintln!("Attaching to process PID: {}...", attach.pid);
+
+        let recorder: Option<ProcessRecorderAttach> = ProcessRecorderAttach::new(attach.pid, &record_params);
+
         if recorder.is_none() {
+            eprintln!("Error attaching to process...");
+            return;
+        }
+        let mut recorder: ProcessRecorderAttach = recorder.unwrap();
+        recorder.start();
+
+        eprintln!("Attached process has exited.");
+    }
+    else if let SubCommandEnum::Start(start) = args.command {
+        eprintln!("Starting process: {}", start.command);
+
+        let recorder: Option<ProcessRecorderRun> = ProcessRecorderRun::new(&start.command, Some(start.args.clone()), &record_params);
+        if recorder.is_none() {
+            eprintln!("Error starting process...");
             return;
         }
         let mut recorder: ProcessRecorderRun = recorder.unwrap();
         recorder.start();
 
+        eprintln!("Recorded process has exited.");
     }
-
-
-    println!("Hello, world!");
 }
