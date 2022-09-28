@@ -1,3 +1,17 @@
+/*
+ psrec
+ Copyright 2022 Peter Pearson.
+ Licensed under the Apache License, Version 2.0 (the "License");
+ You may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+ http://www.apache.org/licenses/LICENSE-2.0
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ ---------
+*/
 
 use crate::process_samples::*;
 
@@ -14,16 +28,23 @@ pub struct ProcessRecordParams {
     // in seconds
     pub record_duration:        Option<usize>,
 
+    pub normalise_cpu_usage:    bool,
+
     pub print_values:           bool,
 }
 
 impl ProcessRecordParams {
     pub fn new() -> ProcessRecordParams {
-        ProcessRecordParams { sample_interval: 2, record_duration: None, print_values: false }
+        ProcessRecordParams { sample_interval: 2, record_duration: None,
+                             normalise_cpu_usage: true, print_values: false }
     }
 
     pub fn set_sample_interval(&mut self, interval_secs: u64) {
         self.sample_interval = interval_secs;
+    }
+
+    pub fn set_normalise_cpu_usage(&mut self, normalise_cpu_usage: bool) {
+        self.normalise_cpu_usage = normalise_cpu_usage;
     }
 
     pub fn set_print_values(&mut self, print_values: bool) {
@@ -36,22 +57,29 @@ pub trait ProcessRecorder {
 }
 
 pub struct ProcessRecorderCore {
-    process:        Option<Process>,
+    recorder_params:    ProcessRecordParams,
+    process:            Option<Process>,
 
-    print_values:   bool,
+    print_values:       bool,
 
-    pub recording:  ProcessRecording,
+    pub recording:      ProcessRecording,
 
-    pub start_time: Option<SystemTime>,
+    pub start_time:     Option<SystemTime>,
 }
 
 impl ProcessRecorderCore {
-    pub fn new() -> ProcessRecorderCore {
-        ProcessRecorderCore { process: None, print_values: false, recording: ProcessRecording::new(0), start_time: None }
-    }
+    // pub fn new() -> ProcessRecorderCore {
+    //     ProcessRecorderCore { recorder_params: ProcessRecordParams::new(),
+    //                           process: None,
+    //                           print_values: false,
+    //                           recording: ProcessRecording::new(0), start_time: None }
+    // }
 
     pub fn from_params(params: &ProcessRecordParams) -> ProcessRecorderCore {
-        ProcessRecorderCore { process: None, print_values: params.print_values, recording: ProcessRecording::new(0), start_time: None }
+        ProcessRecorderCore { recorder_params: params.clone(),
+                              process: None,
+                              print_values: params.print_values,
+                              recording: ProcessRecording::new(params, 0), start_time: None }
     }
 
     // Note: this apparently can't be relied on for processes we fork/spawn ourselves...
@@ -77,12 +105,16 @@ impl ProcessRecorderCore {
         let process = self.process.as_mut().unwrap();
 
         // Note: cpu_percent() is per-core, so 100.0 is 1 full CPU core, 800.0 is 8 full threads being used.
-        let cpu_usage_perc = process.cpu_percent().unwrap_or(0.0);
+        let mut cpu_usage_perc = process.cpu_percent().unwrap_or(0.0);
+        // so because of that, normalise the value to the number of threads if requested (which is the default).
+        if self.recorder_params.normalise_cpu_usage {
+            cpu_usage_perc = cpu_usage_perc / self.recording.num_system_threads as f32;
+        }
         if let Ok(mem) = process.memory_info() {
 
             let elapsed_time = self.start_time.unwrap().elapsed().unwrap().as_secs_f32();
 
-            let new_sample = Sample { elapsed_time, cpu_usage: cpu_usage_perc, curr_rss: mem.rss(), peak_rss: 0 };
+            let new_sample = Sample { elapsed_time, cpu_usage: cpu_usage_perc, curr_rss: mem.rss() };
 
             if self.print_values {
                 eprintln!("Time: {:.2}\tCPU: {:.1}%\t\tMem: {} KB", elapsed_time, cpu_usage_perc, new_sample.curr_rss / 1024);
