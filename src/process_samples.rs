@@ -13,13 +13,28 @@
  ---------
 */
 
+use std::{fs::File, io::BufWriter, io::Write};
+
 use chrono::{Local, DateTime};
 
 use crate::process_recorder::ProcessRecordParams;
 
-pub struct ProcessRecording {
+#[derive(Clone, Debug)]
+pub struct Sample {
+    // in seconds
+    pub elapsed_time:       f32,
 
-    recorder_params:    ProcessRecordParams,
+    // Note: this value may or may not be normalised (to 100.0 if so), depending on the params
+    pub cpu_usage:          f32,
+
+    // in bytes
+    pub curr_rss:           u64,
+
+//    pub peak_rss:           u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct ProcessRecording {
 
     // start timestamp
     pub start_timestamp:        DateTime<Local>,
@@ -35,13 +50,12 @@ pub struct ProcessRecording {
 
 impl ProcessRecording {
     pub fn new(recorder_params: &ProcessRecordParams, initial_process_id: u32) -> ProcessRecording {
-
         let mut num_threads = 1u32;
+        // TODO: is this always going to be correct?
         if let Ok(nt) = std::thread::available_parallelism() {
             num_threads = nt.get() as u32;
         }
-        ProcessRecording { recorder_params: recorder_params.clone(),
-                           start_timestamp: Local::now(),
+        ProcessRecording { start_timestamp: Local::now(),
                            initial_process_id,
                            current_process_id: initial_process_id,
                            num_system_threads: num_threads,
@@ -51,17 +65,26 @@ impl ProcessRecording {
     pub fn set_start_time(&mut self) {
         self.start_timestamp = Local::now();
     }
-}
 
-pub struct Sample {
-    // in seconds
-    pub elapsed_time:       f32,
+    // TODO: use Result properly for return code...
+    pub fn save_to_csv_file(&self, output_file_path: &str, add_metadata_comments: bool) -> bool {
+        let file = File::create(output_file_path);
+        if file.is_err() {
+            eprintln!("Error saving results to CSV file: {}", output_file_path);
+            return false;
+        }
+        let mut buf_writer = BufWriter::new(file.unwrap());
 
-    // Note: this value may or may not be normalised (to 100.0 if so), depending on the params
-    pub cpu_usage:          f32,
+        if add_metadata_comments {
+            writeln!(buf_writer, "# Process recording.").unwrap();
 
-    // in bytes
-    pub curr_rss:           u64,
+            writeln!(buf_writer, "# Time elapsed,CPU Usage,RSS").unwrap();
+        }
 
-//    pub peak_rss:           u64,
+        for sample in &self.samples {
+            writeln!(buf_writer, "{:.1},{:.1},{}", sample.elapsed_time, sample.cpu_usage, sample.curr_rss).unwrap();
+        }
+
+        return true;
+    }
 }

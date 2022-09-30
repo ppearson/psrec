@@ -54,6 +54,8 @@ impl ProcessRecordParams {
 
 pub trait ProcessRecorder {
     fn start(&mut self) -> bool;
+
+    fn get_recording(&self) -> ProcessRecording;
 }
 
 pub struct ProcessRecorderCore {
@@ -165,6 +167,11 @@ impl ProcessRecorder for ProcessRecorderAttach {
         
         return true;
     }
+
+    // TODO: get rid of the need to do this with a copy...
+    fn get_recording(&self) -> ProcessRecording {
+        return self.core.recording.clone();
+    }
 }
 
 pub struct ProcessRecorderRun {
@@ -252,5 +259,8 @@ impl ProcessRecorder for ProcessRecorderRun {
         return false;
     }
 
-    
+    // TODO: get rid of the need to do this with a copy...
+    fn get_recording(&self) -> ProcessRecording {
+        return self.core.recording.clone();
+    }
 }

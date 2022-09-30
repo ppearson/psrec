@@ -17,6 +17,7 @@ mod process_samples;
 mod process_recorder;
 
 use argh::FromArgs;
+use process_samples::ProcessRecording;
 
 use crate::process_recorder::*;
 
@@ -40,13 +41,19 @@ struct MainArgs {
 
     /// whether to record cpu usage as Absolute quantities, instead of Normalised quantities (default).
     /// Absolute will scale over 100.0 for the number of threads, so 800.0 will be 8 threads using full CPU.
-    /// Normalised will be normalised to 100.0, so instead of 800.0 in the above example, it will be 100.0.
+    /// Normalised will be normalised to 100.0, so instead of 800.0 in the above example, it will be 100.0,
+    /// and 1 thread using 100% CPU will be 15.0%.
     #[argh(switch)]
     absolute_cpu_usage: bool,
 
     /// whether to print out values live as process is being recorded to stderr
     #[argh(switch)]
     print_values: bool,
+
+    #[argh(option, short = 'e')]
+    /// file path to export/save raw sample data to. File type is detected from the file extension.
+    /// Only .csv format is supported currently.
+    export: Option<String>,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -96,6 +103,8 @@ fn main() {
         record_params.set_normalise_cpu_usage(false);
     }
 
+    let mut recording_results: Option<ProcessRecording> = None;
+
     if let SubCommandEnum::Attach(attach) = args.command {
         eprintln!("Attaching to process PID: {}...", attach.pid);
 
@@ -107,6 +116,8 @@ fn main() {
         }
         let mut recorder: ProcessRecorderAttach = recorder.unwrap();
         recorder.start();
+
+        recording_results = Some(recorder.get_recording());
 
         eprintln!("Attached process has exited.");
     }
@@ -121,6 +132,18 @@ fn main() {
         let mut recorder: ProcessRecorderRun = recorder.unwrap();
         recorder.start();
 
+        recording_results = Some(recorder.get_recording());
+
         eprintln!("Recorded process has exited.");
+    }
+
+    if let Some(export_path) = args.export {
+        if let Some(rec_results) = recording_results {
+            // save the results
+
+            rec_results.save_to_csv_file(&export_path, true);
+
+            eprintln!("Saved results to file: {}", export_path);
+        }
     }
 }
