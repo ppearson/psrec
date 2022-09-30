@@ -18,10 +18,10 @@ General command line args are:
 
 Additional option args that are supported:
 
-    * `--interval <2>`: Set the interval period in seconds between each recording (default is 1 second).
-    * `--print-values`: Print out the recorded values to stderr live as they're sampled from the process.
-    * `--export <path_to_save_file.csv>`: Save the recorded results to this file.
-    * `--absolute-cpu-usage`: If specified, psrec will not normalise the CPU usage sample values to the number of threads on the machine. By default it does, and full all thread CPU usage will be 100.0. With this option set, it will be 100.0 x number of threads. 
+* `--interval <2>`: Set the interval period in seconds between each recording (default is 1 second).
+* `--print-values`: Print out the recorded values to stderr live as they're sampled from the process.
+* `--export <path_to_save_file.csv>`: Save the recorded results to this file.
+* `--absolute-cpu-usage`: If specified, psrec will not normalise the CPU usage sample values to the number of threads on the machine. By default it does, and full all thread CPU usage will be 100.0. With this option set, it will be 100.0 x number of threads. 
 
 Attaching to an existing process
 --------------------------------
