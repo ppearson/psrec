@@ -1,4 +1,5 @@
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
@@ -99,6 +100,10 @@ def generateBasicCombinedPlot(dataValues, areaPlot):
     ax1.set_ylabel('CPU usage (normalised %)', color=CPU_AXIS_COLOUR)
     rssYLabel = "Memory RSS ({})".format("MB" if dataValues['ru'] == "mb" else "GB")
     ax2.set_ylabel(rssYLabel, color=RSS_AXIS_COLOUR)
+    ax2.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+    # ax2.get_yaxis().set_minor_locator(mpl.ticker.AutoMinorLocator())
+    # for tick in ax2.get_yaxis().get_major_ticks():
+    #     tick.label1.set_color(RSS_AXIS_COLOUR)
 #    ax1.legend(['CPU Usage'])
 #    ax2.legend(['RSS'])
     
@@ -142,6 +147,8 @@ def generateBasicSeparatePlot(dataValues, areaPlot):
 
     rssYLabel = "Memory RSS ({})".format("MB" if dataValues['ru'] == "mb" else "GB")
     ax2.set_ylabel(rssYLabel)
+    ax2.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+    #ax2.get_yaxis().set_minor_locator(mpl.ticker.AutoMinorLocator())
 
     # set_xmargin() doesn't seem to work (or do what I thought it would?)...
     ax1.set_ylim(ymin=0, ymax=100.0)
