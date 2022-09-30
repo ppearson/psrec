@@ -21,24 +21,24 @@ use process_samples::ProcessRecording;
 
 use crate::process_recorder::*;
 
-#[derive(FromArgs, PartialEq, Debug)]
+#[derive(FromArgs)]
 /// Top-level command.
 struct MainArgs {
     #[argh(subcommand)]
     command: SubCommandEnum,
 
     #[argh(option, short = 'i')]
-    /// interval between each sample of the process. Default is 2 seconds.
+    /// interval between each sample of the process. Default is 1 second.
     interval: Option<usize>,
 
     #[argh(option, short = 'd')]
     /// duration to record for in seconds. By default will be until the process being recorded ends.
     duration: Option<usize>,
-
+/* 
     /// whether to use absolute (clock) times instead of time elapsed after start
     #[argh(switch, short = 'a')]
     absolute_timestamps: bool,
-
+*/
     /// whether to record cpu usage as Absolute quantities, instead of Normalised quantities (default).
     /// Absolute will scale over 100.0 for the number of threads, so 800.0 will be 8 threads using full CPU.
     /// Normalised will be normalised to 100.0, so instead of 800.0 in the above example, it will be 100.0,
@@ -114,6 +114,8 @@ fn main() {
             eprintln!("Error attaching to process...");
             return;
         }
+        eprintln!("Successfully attached to process. Recording...");
+
         let mut recorder: ProcessRecorderAttach = recorder.unwrap();
         recorder.start();
 
@@ -129,6 +131,8 @@ fn main() {
             eprintln!("Error starting process...");
             return;
         }
+        eprintln!("Successfully started process. Recording...");
+
         let mut recorder: ProcessRecorderRun = recorder.unwrap();
         recorder.start();
 

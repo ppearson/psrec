@@ -49,7 +49,7 @@ pub struct ProcessRecording {
 }
 
 impl ProcessRecording {
-    pub fn new(recorder_params: &ProcessRecordParams, initial_process_id: u32) -> ProcessRecording {
+    pub fn new(_recorder_params: &ProcessRecordParams, initial_process_id: u32) -> ProcessRecording {
         let mut num_threads = 1u32;
         // TODO: is this always going to be correct?
         if let Ok(nt) = std::thread::available_parallelism() {
@@ -59,7 +59,7 @@ impl ProcessRecording {
                            initial_process_id,
                            current_process_id: initial_process_id,
                            num_system_threads: num_threads,
-                           samples: Vec::with_capacity(128) }
+                           samples: Vec::with_capacity(256) }
     }
 
     pub fn set_start_time(&mut self) {

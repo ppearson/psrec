@@ -35,7 +35,7 @@ pub struct ProcessRecordParams {
 
 impl ProcessRecordParams {
     pub fn new() -> ProcessRecordParams {
-        ProcessRecordParams { sample_interval: 2, record_duration: None,
+        ProcessRecordParams { sample_interval: 1, record_duration: None,
                              normalise_cpu_usage: true, print_values: false }
     }
 
@@ -110,7 +110,7 @@ impl ProcessRecorderCore {
         let mut cpu_usage_perc = process.cpu_percent().unwrap_or(0.0);
         // so because of that, normalise the value to the number of threads if requested (which is the default).
         if self.recorder_params.normalise_cpu_usage {
-            cpu_usage_perc = cpu_usage_perc / self.recording.num_system_threads as f32;
+            cpu_usage_perc /= self.recording.num_system_threads as f32;
         }
         if let Ok(mem) = process.memory_info() {
 
@@ -141,7 +141,7 @@ impl ProcessRecorderAttach {
             return None;
         }
 
-        let mut core = ProcessRecorderCore::from_params(&record_params);
+        let mut core = ProcessRecorderCore::from_params(record_params);
         core.process = Some(process.unwrap());
 
         return Some(ProcessRecorderAttach { record_params: record_params.clone(), core })
@@ -193,7 +193,7 @@ impl ProcessRecorderRun {
         }
 
         return Some(ProcessRecorderRun { record_params: record_params.clone(), command: command.to_string(), args,
-                                        core: ProcessRecorderCore::from_params(&record_params), child_process: None })
+                                        core: ProcessRecorderCore::from_params(record_params), child_process: None })
     }
 
     // this is needed because we can't rely on psutil::process::Process::is_running() working
