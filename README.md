@@ -18,20 +18,21 @@ General command line args are:
 
 Additional option args that are supported:
 
-* `--interval <2>`: Set the interval period in seconds between each recording (default is 1 second).
+* `--interval <2>`: Set the interval period in seconds between each sample recording (default is 1 second). The value specified can have a unit suffix (s/m/h), so you can specify `1m` for "1 minute". If a unit suffix char is not provided, seconds are assumed as the unit.
+* `--duration <30m>`: Set the duration for which to record samples for. By default, no duration limit will be applied, and psrec will record the process until the process exits. The value specified can have a unit suffix (s/m/h), so you can specify `30m` for "30 minutes". If a unit suffix char is not provided, seconds are assumed as the unit.
 * `--print-values`: Print out the recorded values to stderr live as they're sampled from the process.
 * `--export <path_to_save_file.csv>`: Save the recorded results to this file.
-* `--absolute-cpu-usage`: If specified, psrec will not normalise the CPU usage sample values to the number of threads on the machine. By default it does, and full all thread CPU usage will be 100.0. With this option set, it will be 100.0 x number of threads. 
+* `--absolute-cpu-usage`: If specified, psrec will not normalise the CPU usage sample values to the number of threads on the machine. By default it does, and full all thread CPU usage will be 100.0. With this flag option set, it will be 100.0 x number of threads. 
 
-Attaching to an existing process
---------------------------------
+Attach Mode - Attaching to an existing process
+----------------------------------------------
 
     ./psrec --export <path_to_save_results.csv> attach <PID>
 
 This will attempt to attach to the process with the provided Process ID, and start recording the CPU usage and current RSS memory usage every second by default. After the attached process has finished, results will be saved to the file path provided by the `--export` command line arg.
 
-Starting a new process
-----------------------
+Start Mode - Starting a new process
+-----------------------------------
 
     ./psrec --export <path_to_save_results.csv> start <path_to_application> [optional_command line args]
 

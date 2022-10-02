@@ -15,6 +15,7 @@
 
 mod process_samples;
 mod process_recorder;
+mod utils;
 
 use argh::FromArgs;
 use process_samples::ProcessRecording;
@@ -28,12 +29,14 @@ struct MainArgs {
     command: SubCommandEnum,
 
     #[argh(option, short = 'i')]
-    /// interval between each sample of the process. Default is 1 second.
-    interval: Option<usize>,
+    /// interval between each sample of the process in various suffix units (s/m/h). Default is 1 second.
+    /// Not specifying a suffix unit char will use seconds.
+    interval: Option<String>,
 
     #[argh(option, short = 'd')]
-    /// duration to record for in seconds. By default will be until the process being recorded ends.
-    duration: Option<usize>,
+    /// duration to record for in various suffix units (s/m/h). By default will be until the process being recorded ends.
+    /// Not specifying a suffix unit char will use seconds.
+    duration: Option<String>,
 /* 
     /// whether to use absolute (clock) times instead of time elapsed after start
     #[argh(switch, short = 'a')]
@@ -89,13 +92,10 @@ struct SubCommandAttach {
 fn main() {
     let args: MainArgs = argh::from_env();
 
-    let mut record_params = ProcessRecordParams::new();
+    let mut record_params = ProcessRecordParams::new(args.interval, args.duration);
 
     // TODO: something better than this... pass in args to ProcessRecordParams?
     //       or at least encapsulate it somewhere...
-    if let Some(interval) = args.interval {
-        record_params.set_sample_interval(interval as u64);
-    }
     if args.print_values {
         record_params.set_print_values(true);
     }
@@ -109,14 +109,13 @@ fn main() {
         eprintln!("Attaching to process PID: {}...", attach.pid);
 
         let recorder: Option<ProcessRecorderAttach> = ProcessRecorderAttach::new(attach.pid, &record_params);
-
         if recorder.is_none() {
             eprintln!("Error attaching to process...");
             return;
         }
-        eprintln!("Successfully attached to process. Recording...");
 
         let mut recorder: ProcessRecorderAttach = recorder.unwrap();
+        // Note: start() prints some progress...
         recorder.start();
 
         recording_results = Some(recorder.get_recording());
@@ -131,9 +130,9 @@ fn main() {
             eprintln!("Error starting process...");
             return;
         }
-        eprintln!("Successfully started process. Recording...");
 
         let mut recorder: ProcessRecorderRun = recorder.unwrap();
+        // Note: start() prints some progress...
         recorder.start();
 
         recording_results = Some(recorder.get_recording());

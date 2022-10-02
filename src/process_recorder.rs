@@ -14,33 +14,67 @@
 */
 
 use crate::process_samples::*;
+use crate::utils::convert_time_period_string_to_seconds;
 
 use std::process::Command;
 use std::time::SystemTime;
 
 use psutil::process::Process;
 
+// TODO: there is a bit of duplication in here between the two recording methods...
+
 #[derive(Clone, Debug)]
 pub struct ProcessRecordParams {
     // in seconds
     pub sample_interval:        u64,
+    // human readable string representation (with units) of the above, for printing
+    pub sample_interval_human:  String,
 
     // in seconds
-    pub record_duration:        Option<usize>,
+    pub record_duration:        Option<u64>,
+    // human readable string representation (with units) of the above, for printing
+    pub record_duration_human:  String, 
 
+    // whether to 'normalise' CPU usage values to the number of threads the process can use.
     pub normalise_cpu_usage:    bool,
 
+    // whether to print values to stderr as they're sampled live...
     pub print_values:           bool,
 }
 
 impl ProcessRecordParams {
-    pub fn new() -> ProcessRecordParams {
-        ProcessRecordParams { sample_interval: 1, record_duration: None,
-                             normalise_cpu_usage: true, print_values: false }
-    }
+    pub fn new(sample_interval: Option<String>, record_duration: Option<String>) -> ProcessRecordParams {
 
-    pub fn set_sample_interval(&mut self, interval_secs: u64) {
-        self.sample_interval = interval_secs;
+        let mut params = ProcessRecordParams { sample_interval: 1,
+                                               sample_interval_human: "1 sec".to_string(),
+                                               record_duration: None,
+                                               record_duration_human: String::new(),
+                                               normalise_cpu_usage: true,
+                                               print_values: false };
+
+        if let Some(sample_interval_string) = sample_interval {
+            if let Some(interval_secs) = convert_time_period_string_to_seconds(&sample_interval_string) {
+                params.sample_interval = interval_secs.0;
+                params.sample_interval_human = interval_secs.1;
+            }
+            else {
+                eprintln!("Error parsing sample interval string specified: '{}'.", sample_interval_string);
+                eprintln!("Using default of 1 second.");
+            }
+        }
+
+        if let Some(record_duration_string) = record_duration {
+            if let Some(duration_secs) = convert_time_period_string_to_seconds(&record_duration_string) {
+                params.record_duration = Some(duration_secs.0);
+                params.record_duration_human = duration_secs.1;
+            }
+            else {
+                eprintln!("Error parsing record duration string specified: '{}'", record_duration_string);
+                eprintln!("Using default of no time duriation.");
+            }
+        }
+        
+        return params;
     }
 
     pub fn set_normalise_cpu_usage(&mut self, normalise_cpu_usage: bool) {
@@ -70,13 +104,6 @@ pub struct ProcessRecorderCore {
 }
 
 impl ProcessRecorderCore {
-    // pub fn new() -> ProcessRecorderCore {
-    //     ProcessRecorderCore { recorder_params: ProcessRecordParams::new(),
-    //                           process: None,
-    //                           print_values: false,
-    //                           recording: ProcessRecording::new(0), start_time: None }
-    // }
-
     pub fn from_params(params: &ProcessRecordParams) -> ProcessRecorderCore {
         ProcessRecorderCore { recorder_params: params.clone(),
                               process: None,
@@ -136,8 +163,8 @@ pub struct ProcessRecorderAttach {
 impl ProcessRecorderAttach {
     pub fn new(pid: u32, record_params: &ProcessRecordParams) -> Option<ProcessRecorderAttach> {
         let process = Process::new(pid);
-        if let Err(_err) = process {
-            eprintln!("Error monitoring process.");
+        if let Err(err) = process {
+            eprintln!("Error attaching to PID: {}, {}", pid, err);
             return None;
         }
 
@@ -150,6 +177,19 @@ impl ProcessRecorderAttach {
 
 impl ProcessRecorder for ProcessRecorderAttach {
     fn start(&mut self) -> bool {
+
+        let mut recording_msg = format!("Recording samples every {} ", self.record_params.sample_interval_human);
+        if self.core.recorder_params.record_duration.is_none() {
+            recording_msg.push_str("until process ends...");
+        }
+        else {
+            recording_msg.push_str(&format!("for a duration of {}...", self.core.recorder_params.record_duration_human));
+        }
+
+        eprintln!("Successfully attached to process (PID: {}).\n{}",
+                    self.core.process.as_ref().unwrap().pid(),
+                    recording_msg);
+        
         self.core.start_time = Some(SystemTime::now());
 
         self.core.record_sample();
@@ -158,11 +198,37 @@ impl ProcessRecorder for ProcessRecorderAttach {
 
         std::thread::sleep(sleep_duration);
 
-        while self.core.process_is_running() {
-            self.core.record_sample();
+        // this is a little bit silly, but we only want to pay the overhead if strictly necessary, so split the code
+        // paths so we're ultra-efficient while recording...
+        if let Some(record_duration_limit) = self.core.recorder_params.record_duration {
+            // we have a duration limit, so...
+            let duration_limit_secs = record_duration_limit as f32;
 
-            // TODO: this suffers from a tiny bit of drift...
-            std::thread::sleep(sleep_duration);
+            while self.core.process_is_running() {
+                self.core.record_sample();
+    
+                // TODO: this suffers from a tiny bit of drift...
+                std::thread::sleep(sleep_duration);
+
+                // TODO: error handling...
+                let start_time = self.core.start_time.as_ref().unwrap();
+                let elapsed_time = start_time.elapsed();
+                // TODO: error handling...
+                if elapsed_time.unwrap().as_secs_f32() >= duration_limit_secs {
+                    eprintln!("Recording duration limit reached, recording has stopped (process might continue running).");
+                    return true;
+                }
+            }
+        }
+        else {
+            // we have no duration limit, so just do the basic stuff...
+
+            while self.core.process_is_running() {
+                self.core.record_sample();
+    
+                // TODO: this suffers from a tiny bit of drift...
+                std::thread::sleep(sleep_duration);
+            }
         }
         
         return true;
@@ -216,7 +282,6 @@ impl ProcessRecorderRun {
 
 impl ProcessRecorder for ProcessRecorderRun {
     fn start(&mut self) -> bool {
-
         // spawn a forked process to run the process we're going to monitor in...
 
         let mut command = Command::new(&self.command);
@@ -230,10 +295,22 @@ impl ProcessRecorder for ProcessRecorderRun {
 
         if let Ok(child_info) = spawn_res {
             let process = Process::new(child_info.id());
-            if let Err(_err) = process {
-                eprintln!("Error monitoring process.");
+            if let Err(err) = process {
+                eprintln!("Error recording (attaching to) spawned process: {}", err);
                 return false;
             }
+
+            let mut recording_msg = format!("Recording samples every {} ", self.record_params.sample_interval_human);
+            if self.core.recorder_params.record_duration.is_none() {
+                recording_msg.push_str("until process ends...");
+            }
+            else {
+                recording_msg.push_str(&format!("for a duration of {}...", self.core.recorder_params.record_duration_human));
+            }
+
+            eprintln!("Successfully started process (PID: {}).\n{}", child_info.id(),
+                        recording_msg);
+
             self.child_process = Some(child_info);
 
             self.core.start_time = Some(SystemTime::now());
@@ -246,11 +323,37 @@ impl ProcessRecorder for ProcessRecorderRun {
 
             std::thread::sleep(sleep_duration);
 
-            while self.check_process_is_running() {
-                self.core.record_sample();
+            // this is a little bit silly, but we only want to pay the overhead if strictly necessary, so split the code
+            // paths so we're ultra-efficient while recording...
+            if let Some(record_duration_limit) = self.core.recorder_params.record_duration {
+                // we have a duration limit, so...
+                let duration_limit_secs = record_duration_limit as f32;
 
-                // TODO: this suffers from a tiny bit of drift...
-                std::thread::sleep(sleep_duration);
+                while self.check_process_is_running() {
+                    self.core.record_sample();
+    
+                    // TODO: this suffers from a tiny bit of drift...
+                    std::thread::sleep(sleep_duration);
+
+                    // TODO: error handling...
+                    let start_time = self.core.start_time.as_ref().unwrap();
+                    let elapsed_time = start_time.elapsed();
+                    // TODO: error handling...
+                    if elapsed_time.unwrap().as_secs_f32() >= duration_limit_secs {
+                        eprintln!("Recording duration limit reached, recording has stopped (process might continue running).");
+                        return true;
+                    }
+                }
+            }
+            else {
+                // we have no duration limit, so just do the basic stuff...
+
+                while self.check_process_is_running() {
+                    self.core.record_sample();
+    
+                    // TODO: this suffers from a tiny bit of drift...
+                    std::thread::sleep(sleep_duration);
+                }
             }
             
             return true;
