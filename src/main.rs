@@ -74,7 +74,7 @@ struct SubCommandStart {
     /// command line command to start/run and record
     command: String,
 
-    #[argh(positional)]
+    #[argh(positional, greedy)]
     /// command line args
     args: Vec<String>,
 }

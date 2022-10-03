@@ -7,11 +7,12 @@ edition = "2021"
 
 [dependencies]
 psutil = { version = "3.2.2", default-features = false, features = ["cpu", "process"] }
-ctrlc = "3.2.3"
-argh = "0.1.8"
+#ctrlc = "3.2.3"
+argh = "0.1.9"
 
 #num_threads = "0.1.6"
 
 # use something minimal, rather than chrono
 #time = "0.3.14"
+# or not...
 chrono = "0.4.22"
