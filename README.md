@@ -1,11 +1,11 @@
-PSREC
+psrec
 =====
 
-psrec is a stand-alone (at least for recording) command line application designed for recording basic aspects of other applications that are run, currently CPU usage and memory usage over time.
+psrec is a small, stand-alone (at least for recording) command line application designed for recording basic aspects of other applications that are run: currently both CPU usage and memory usage over time.
 
-It's essentially a compiled (using Rust) application very similar in use-case to psrecord.
+It's essentially a compiled (using Rust) application very similar in use-case to psrecord which exists for Python.
 
-Currently visualisation of the data needs to be done externally via a provided Python script which uses matplotlib, and the main psrec executable can save the results to a .CSV file.
+Currently visualisation of the resulting recorded data needs to be done externally via a provided Python script which uses matplotlib, and the main psrec executable can save the results to a .csv file.
 
 Usage
 =====
@@ -42,10 +42,10 @@ This will attempt to spawn off the specified process (with optional command line
 Visualising Results
 ===================
 
-Results are currently saved to .csv file (more formats will likely be supported in the future), and a provided Python script can be used to visualise them in chart form.
+Results are currently saved to a .csv file (more formats will likely be supported in the future) - assuming you run with the `--export <path>` command line arg - and a provided Python script can be used to visualise them in chart form.
 
 Running:
 
-    python3 psrec_gen_plot.py <path_to_results_file.csv>
+    python psrec_gen_plot.py <path_to_results_file.csv>
 
-With Python 3 with matplotlib libs installed, should display a chart of the results.
+With Python with matplotlib libs installed, should display a chart of the results (should work with Python 2 and 3).
