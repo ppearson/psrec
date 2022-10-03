@@ -85,6 +85,8 @@ impl ProcessRecording {
             writeln!(buf_writer, "{:.1},{:.1},{}", sample.elapsed_time, sample.cpu_usage, sample.curr_rss).unwrap();
         }
 
+        buf_writer.flush().unwrap();
+
         return true;
     }
 }
