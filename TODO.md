@@ -7,7 +7,7 @@ Future enhancements
 (Likely)
 
 * Implmement support for killing processes with Ctrl+C.
-* Add ability to record sample details of child processes of the main process.
+* Add ability to record other process details like user/system time breakdown, number of active threads, etc
 * Config file support - with preset support, to make recording more user-friendly?
 * Checking any export file path is valid and write-able before starting.
 * Writing the record sample values out live to file as they're sampled, rather than at the end (maybe optionally?).

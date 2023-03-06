@@ -1,6 +1,6 @@
 /*
  psrec
- Copyright 2022 Peter Pearson.
+ Copyright 2022-2023 Peter Pearson.
  Licensed under the Apache License, Version 2.0 (the "License");
  You may not use this file except in compliance with the License.
  You may obtain a copy of the License at
@@ -12,6 +12,11 @@
  limitations under the License.
  ---------
 */
+
+mod process_sampler;
+
+#[cfg(target_os = "linux")]
+mod process_sampler_advanced;
 
 mod process_samples;
 mod process_recorder;
@@ -37,16 +42,20 @@ struct MainArgs {
     /// duration to record for in various suffix units (s/m/h). By default will be until the process being recorded ends.
     /// Not specifying a suffix unit char will use seconds.
     duration: Option<String>,
-/* 
-    /// whether to use absolute (clock) times instead of time elapsed after start
-    #[argh(switch, short = 'a')]
-    absolute_timestamps: bool,
-*/
+ 
+    /// whether to use absolute (wallclock) times instead of time elapsed after start
+//    #[argh(switch)]
+//    absolute_timestamps: bool,
+
+    /// whether to record the data for child processes as well as the main process. Defaults to off (false).
+    #[argh(switch, short = 'c')]
+    record_child_processes: bool,
+
     /// whether to record cpu usage as Absolute quantities, instead of Normalised quantities (default).
     /// Absolute will scale over 100.0 for the number of threads, so 800.0 will be 8 threads using full CPU.
     /// Normalised will be normalised to 100.0, so instead of 800.0 in the above example, it will be 100.0,
     /// and 1 thread using 100% CPU will be 15.0%.
-    #[argh(switch)]
+    #[argh(switch, short = 'a')]
     absolute_cpu_usage: bool,
 
     /// whether to print out values live as process is being recorded to stderr
@@ -96,11 +105,14 @@ fn main() {
 
     // TODO: something better than this... pass in args to ProcessRecordParams?
     //       or at least encapsulate it somewhere...
+    if args.absolute_cpu_usage {
+        record_params.set_normalise_cpu_usage(false);
+    }
     if args.print_values {
         record_params.set_print_values(true);
     }
-    if args.absolute_cpu_usage {
-        record_params.set_normalise_cpu_usage(false);
+    if args.record_child_processes {
+        record_params.set_record_child_processes(true);
     }
 
     let mut recording_results: Option<ProcessRecording> = None;

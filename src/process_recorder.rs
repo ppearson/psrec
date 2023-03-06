@@ -1,6 +1,6 @@
 /*
  psrec
- Copyright 2022 Peter Pearson.
+ Copyright 2022-2023 Peter Pearson.
  Licensed under the Apache License, Version 2.0 (the "License");
  You may not use this file except in compliance with the License.
  You may obtain a copy of the License at
@@ -12,6 +12,11 @@
  limitations under the License.
  ---------
 */
+
+use crate::process_sampler::{ProcessSampler, ProcessSamplerBasic};
+
+#[cfg(target_os = "linux")]
+use crate::process_sampler_advanced::ProcessSamplerAdvanced;
 
 use crate::process_samples::*;
 use crate::utils::convert_time_period_string_to_ms;
@@ -108,6 +113,8 @@ pub struct ProcessRecorderCore {
 
     pub recording:      ProcessRecording,
 
+    pub sampler:        Option<Box<dyn ProcessSampler>>,
+
     pub start_time:     Option<SystemTime>,
 }
 
@@ -116,7 +123,45 @@ impl ProcessRecorderCore {
         ProcessRecorderCore { recorder_params: params.clone(),
                               process: None,
                               print_values: params.print_values,
-                              recording: ProcessRecording::new(params, 0), start_time: None }
+                              recording: ProcessRecording::new(params, 0),
+                              sampler: None,
+                              start_time: None }
+    }
+
+    fn init_sampler(&mut self) -> bool {
+        if self.process.is_none() {
+            return false;
+        }
+
+        let need_advanced = self.recorder_params.record_child_processes;
+ 
+        if need_advanced {
+            #[cfg(target_os = "linux")]
+            {
+                let new_advanced_sampler = ProcessSamplerAdvanced::new(self.recorder_params.clone(), self.process.as_ref().unwrap().pid());
+                if new_advanced_sampler.is_none() {
+                    eprintln!("Error creating advanced sampler.");
+                    return false;
+                }
+
+                self.sampler = Some(Box::new(new_advanced_sampler.unwrap()));
+                return true;
+            }
+            
+            #[cfg(not(target_os = "linux"))]
+            {
+                eprintln!("Error: Advanced features are only available in Linux builds with access to the /proc/<pid>/stat file system.");
+                return false;
+            }
+        }
+        else {
+            // handle the basic/backup case...
+            // TODO: handle unwraps() correctly...
+            let new_basic_sampler = ProcessSamplerBasic::new(self.recorder_params.clone(), self.process.as_ref().unwrap().pid());
+            self.sampler = Some(Box::new(new_basic_sampler.unwrap()));
+        }
+
+        return true;
     }
 
     // Note: this apparently can't be relied on for processes we fork/spawn ourselves...
@@ -139,26 +184,29 @@ impl ProcessRecorderCore {
             return;
         }
 
-        let process = self.process.as_mut().unwrap();
+        let elapsed_time = self.start_time.unwrap().elapsed().unwrap().as_secs_f32();
 
-        // Note: cpu_percent() is per-core, so 100.0 is 1 full CPU core, 800.0 is 8 full threads being used.
-        let mut cpu_usage_perc = process.cpu_percent().unwrap_or(0.0);
-        // so because of that, normalise the value to the number of threads if requested (which is the default).
+        // TODO: handle this more correctly...
+        let sample = self.sampler.as_mut().unwrap().get_sample();
+        if sample.is_none() {
+            // assume the first sample might be dud, and ignore it...
+            return;
+        }
+        let mut sample = sample.unwrap();
+
+        // set the elapsed_time correctly...
+        sample.elapsed_time = elapsed_time;
+
         if self.recorder_params.normalise_cpu_usage {
-            cpu_usage_perc /= self.recording.num_system_threads as f32;
+            // so because of that, normalise the value to the number of threads if requested (which is the default).
+            sample.cpu_usage /= self.recording.num_system_threads as f32;
         }
-        if let Ok(mem) = process.memory_info() {
 
-            let elapsed_time = self.start_time.unwrap().elapsed().unwrap().as_secs_f32();
-
-            let new_sample = Sample { elapsed_time, cpu_usage: cpu_usage_perc, curr_rss: mem.rss() };
-
-            if self.print_values {
-                eprintln!("Time: {:.2}\tCPU: {:.1}%\t\tMem: {} KB", elapsed_time, cpu_usage_perc, new_sample.curr_rss / 1024);
-            }
-
-            self.recording.samples.push(new_sample);
+        if self.print_values {
+            eprintln!("Time: {:.2}\tCPU: {:.1}%\t\tMem: {} KB", sample.elapsed_time, sample.cpu_usage, sample.curr_rss / 1024);
         }
+
+        self.recording.samples.push(sample);
     }
 }
 
@@ -185,6 +233,11 @@ impl ProcessRecorderAttach {
 
 impl ProcessRecorder for ProcessRecorderAttach {
     fn start(&mut self) -> bool {
+
+        if !self.core.init_sampler() {
+            eprintln!("Error initialising process sampler.");
+            return false;
+        }
 
         let mut recording_msg = format!("Recording samples every {} ", self.record_params.sample_interval_human);
         if self.core.recorder_params.record_duration.is_none() {
@@ -324,6 +377,11 @@ impl ProcessRecorder for ProcessRecorderRun {
             self.core.start_time = Some(SystemTime::now());
 
             self.core.process = Some(process.unwrap());
+
+            if !self.core.init_sampler() {
+                eprintln!("Error initialising process sampler.");
+                return false;
+            }
 
             self.core.record_sample();
 

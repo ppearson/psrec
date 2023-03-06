@@ -9,6 +9,7 @@ edition = "2021"
 psutil = { version = "3.2.2", default-features = false, features = ["cpu", "process"] }
 #ctrlc = "3.2.3"
 argh = "0.1.9"
+procfs = { version = "0.15.1", default-features = false, features = [] }
 
 #num_threads = "0.1.6"
 

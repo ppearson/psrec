@@ -1,6 +1,6 @@
 /*
  psrec
- Copyright 2022 Peter Pearson.
+ Copyright 2022-2023 Peter Pearson.
  Licensed under the Apache License, Version 2.0 (the "License");
  You may not use this file except in compliance with the License.
  You may obtain a copy of the License at
@@ -24,7 +24,7 @@ pub struct Sample {
     // in seconds
     pub elapsed_time:       f32,
 
-    // Note: this value may or may not be normalised (to 100.0 if so), depending on the params
+    // Note: this value may or may not be normalised (to 100.0 if so), depending on the recording params
     pub cpu_usage:          f32,
 
     // in bytes
@@ -51,7 +51,9 @@ pub struct ProcessRecording {
 impl ProcessRecording {
     pub fn new(_recorder_params: &ProcessRecordParams, initial_process_id: u32) -> ProcessRecording {
         let mut num_threads = 1u32;
-        // TODO: is this always going to be correct?
+        
+        // Note: this is only going to be correct for the most basic scenarios... i.e. it returns the wrong value
+        //       when running within cgroups on Linux, as it's not aware of any core limits/masking...
         if let Ok(nt) = std::thread::available_parallelism() {
             num_threads = nt.get() as u32;
         }
