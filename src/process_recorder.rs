@@ -48,6 +48,9 @@ pub struct ProcessRecordParams {
 
     // whether to record details about any child processes
     pub record_child_processes: bool,
+
+    // whether to record the thread count of the process
+    pub record_thread_count:    bool,
 }
 
 impl ProcessRecordParams {
@@ -57,9 +60,10 @@ impl ProcessRecordParams {
                                                sample_interval_human: "1 sec".to_string(),
                                                record_duration: None,
                                                record_duration_human: String::new(),
-                                               normalise_cpu_usage: true,
+                                               normalise_cpu_usage: false,
                                                print_values: false,
-                                               record_child_processes: false };
+                                               record_child_processes: false,
+                                               record_thread_count: false };
 
         if let Some(sample_interval_string) = sample_interval {
             if let Some(interval_ms) = convert_time_period_string_to_ms(&sample_interval_string) {
@@ -97,6 +101,10 @@ impl ProcessRecordParams {
     pub fn set_record_child_processes(&mut self, record_child_processes: bool) {
         self.record_child_processes = record_child_processes;
     }
+
+    pub fn set_record_thread_count(&mut self, record_thread_count: bool) {
+        self.record_thread_count = record_thread_count;
+    }
 }
 
 pub trait ProcessRecorder {
@@ -133,7 +141,8 @@ impl ProcessRecorderCore {
             return false;
         }
 
-        let need_advanced = self.recorder_params.record_child_processes;
+        let need_advanced = self.recorder_params.record_child_processes ||
+                            self.recorder_params.record_thread_count;
  
         if need_advanced {
             #[cfg(target_os = "linux")]

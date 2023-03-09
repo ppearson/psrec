@@ -1,11 +1,26 @@
 
+'''
+ psrec
+ Copyright 2022-2023 Peter Pearson.
+ Licensed under the Apache License, Version 2.0 (the "License");
+ You may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+ http://www.apache.org/licenses/LICENSE-2.0
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ ---------
+'''
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
 import argparse
 
-# Very basic script to use matplotlib to plot raw data saved from psrec
+# *Very* basic script to use matplotlib to plot raw data saved from psrec
 # Designed (currently) to only use bare minimal libs (python + matplotlib)
 
 # TODO: Make this more pythonic (PEP8), and robust (error handling)
@@ -17,9 +32,13 @@ def readDataValuesFromCSVFile(filename):
     timeValues = []
     cpuValues = []
     rssValues = []
+    # Note: this is optional
+    threadCountsValues = []
 
     timeUnit = "s"
     rssUnit = "mb"
+
+    maxCPUValue = 0.0
 
     fData = open(filename, "r")
     for line in fData:
@@ -36,13 +55,23 @@ def readDataValuesFromCSVFile(filename):
         cpu = items[1]
         rss = items[2]
 
+        cpu = float(cpu)
+
+        # keep track of maximum cpu value, so we can later try and see if we can work
+        # if the values might be normalised or not (not completely robustly though...)
+        if cpu > maxCPUValue:
+            maxCPUValue = cpu
+
         rssVal = float(rss) / 1024.0 / 1024.0
         if rssVal > 4000.0:
             rssUnit = "gb"
 
         timeValues.append(float(time))
-        cpuValues.append(float(cpu))
+        cpuValues.append(cpu)
         rssValues.append(rssVal)
+
+        if len(items) > 3:
+            threadCountsValues.append(int(items[3]))
     
     # See what last time was, and if > 5 mins, use hours/minutes instead of seconds as the units
     if len(timeValues) > 0:
@@ -64,12 +93,8 @@ def readDataValuesFromCSVFile(filename):
         # TODO: could use numpy for this
         for i in range(len(rssValues)):
             rssValues[i] /= 1024.0
-    
-    # TODO: work out how to handle absolute (non-normalised) CPU time values... it's not
-    #       clear how to know that from just the values themselves, so we may need to use comment
-    #       metadata (or a better format! :) )
-    
-    values = {'tv':timeValues, 'cv': cpuValues, 'rv': rssValues, 'tu':timeUnit, 'ru':rssUnit}
+        
+    values = {'tv':timeValues, 'cv':cpuValues, 'rv':rssValues, 'tcv':threadCountsValues, 'tu':timeUnit, 'ru':rssUnit, 'mcv':maxCPUValue}
     return values
 
 def generateBasicCombinedPlot(dataValues, areaPlot):
@@ -86,6 +111,10 @@ def generateBasicCombinedPlot(dataValues, areaPlot):
 
     timeValues = dataValues['tv']
 
+    # this obviously isn't going to be completely robust, but on the assumption there'll be some values using more than
+    # one core, works fairly well in practice
+    isCPUDataPossiblyAbsolute = dataValues['mcv'] > 105.0
+
     ax2 = ax1.twinx()
     ax1.set_title('Process recording (CPU usage and RSS memory usage)')
     xLabel = "Time elapsed ({})".format("Minutes" if dataValues['tu'] == "m" else "Hours" if dataValues['tu'] == "h" else "Seconds")
@@ -97,64 +126,98 @@ def generateBasicCombinedPlot(dataValues, areaPlot):
         ax1.plot(timeValues, dataValues['cv'], color='blue')
         ax2.plot(timeValues, dataValues['rv'], color='red')
 
-    ax1.set_ylabel('CPU usage (normalised %)', color=CPU_AXIS_COLOUR)
+    ax1.set_ylabel('CPU usage ({} %)'.format("absolute" if isCPUDataPossiblyAbsolute else "normalised"), color=CPU_AXIS_COLOUR)
+    ax1.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+
     rssYLabel = "Memory RSS ({})".format("MB" if dataValues['ru'] == "mb" else "GB")
     ax2.set_ylabel(rssYLabel, color=RSS_AXIS_COLOUR)
     ax2.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
-    # ax2.get_yaxis().set_minor_locator(mpl.ticker.AutoMinorLocator())
-    # for tick in ax2.get_yaxis().get_major_ticks():
-    #     tick.label1.set_color(RSS_AXIS_COLOUR)
-#    ax1.legend(['CPU Usage'])
-#    ax2.legend(['RSS'])
     
     ax1.yaxis.grid(color='lightgray')
 
     fig.tight_layout()
 
     # set_xmargin() doesn't seem to work (or do what I thought it would?)...
-    ax1.set_ylim(ymin=0, ymax=100.0)
+    if isCPUDataPossiblyAbsolute:
+        ax1.set_ylim(ymin=0, ymax=dataValues['mcv'])
+    else:
+        ax1.set_ylim(ymin=0, ymax=100.0)
     ax1.set_xlim(xmin=0, xmax=timeValues[-1])
     ax2.set_ylim(ymin=0, ymax=max(dataValues['rv']))
     ax2.set_xlim(xmin=0, xmax=timeValues[-1])
     plt.show()
 
 def generateBasicSeparatePlot(dataValues, areaPlot):
-    fig, (ax1, ax2) = plt.subplots(2, 1)
+    haveThreadCounts = len(dataValues['tcv']) > 0
+
+    fig = None
+    axes = None
+
+    if haveThreadCounts:
+        fig, axes = plt.subplots(3, 1)
+    else:
+        fig, axes = plt.subplots(2, 1)
 
     fig.tight_layout()
     fig.set_figwidth(15)
     fig.set_figheight(8)
 
-    fig.suptitle('Process recording (CPU usage and RSS memory usage)')
+    if haveThreadCounts:
+        fig.suptitle('Process recording (CPU usage, RSS memory usage and Thread Count)')
+    else:
+        fig.suptitle('Process recording (CPU usage and RSS memory usage)')
 
     timeValues = dataValues['tv']
 
-    ax1.yaxis.grid(color='lightgray')
+    # this obviously isn't going to be completely robust, but on the assumption there'll be some values using more than
+    # one core, works fairly well in practice
+    isCPUDataPossiblyAbsolute = dataValues['mcv'] > 105.0
+
+    axes[0].yaxis.grid(color='lightgray')
     if areaPlot:
-        ax1.fill_between(timeValues, dataValues['cv'], color='blue', alpha=0.7)
+        axes[0].fill_between(timeValues, dataValues['cv'], color='blue', alpha=0.7)
     else:
-        ax1.plot(timeValues, dataValues['cv'], color='blue')
+        axes[0].plot(timeValues, dataValues['cv'], color='blue')
     xLabel = "Time elapsed ({})".format("Minutes" if dataValues['tu'] == "m" else "Hours" if dataValues['tu'] == "h" else "Seconds")
-    ax1.set_xlabel(xLabel)
-    ax1.set_ylabel('CPU usage (normalised %)')
+    axes[0].set_xlabel(xLabel)
+    axes[0].set_ylabel('CPU usage ({} %)'.format("absolute" if isCPUDataPossiblyAbsolute else "normalised"))
+    axes[0].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
     
-    ax2.yaxis.grid(color='lightgray')
+    axes[1].yaxis.grid(color='lightgray')
     if areaPlot:
-        ax2.fill_between(timeValues, dataValues['rv'], color='red', alpha=0.7)
+        axes[1].fill_between(timeValues, dataValues['rv'], color='red', alpha=0.7)
     else:
-        ax2.plot(timeValues, dataValues['rv'], color='red')
-    ax2.set_xlabel(xLabel)
+        axes[1].plot(timeValues, dataValues['rv'], color='red')
+    axes[1].set_xlabel(xLabel)
 
     rssYLabel = "Memory RSS ({})".format("MB" if dataValues['ru'] == "mb" else "GB")
-    ax2.set_ylabel(rssYLabel)
-    ax2.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
-    #ax2.get_yaxis().set_minor_locator(mpl.ticker.AutoMinorLocator())
+    axes[1].set_ylabel(rssYLabel)
+    axes[1].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+    #axes[1].get_yaxis().set_minor_locator(mpl.ticker.AutoMinorLocator())
+
+    if haveThreadCounts:
+        axes[2].yaxis.grid(color='lightgray')
+        if areaPlot:
+            axes[2].fill_between(timeValues, dataValues['tcv'], color='green', alpha=0.7)
+        else:
+            axes[2].plot(timeValues, dataValues['tcv'], color='green')
+        axes[2].set_xlabel(xLabel)
+
+        threadsYLabel = "Active Thread Count"
+        axes[2].set_ylabel(threadsYLabel)
+        axes[2].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
 
     # set_xmargin() doesn't seem to work (or do what I thought it would?)...
-    ax1.set_ylim(ymin=0, ymax=100.0)
-    ax1.set_xlim(xmin=0, xmax=timeValues[-1])
-    ax2.set_ylim(ymin=0, ymax=max(dataValues['rv']))
-    ax2.set_xlim(xmin=0, xmax=timeValues[-1])
+    if isCPUDataPossiblyAbsolute:
+        axes[0].set_ylim(ymin=0, ymax=dataValues['mcv'])
+    else:
+        axes[0].set_ylim(ymin=0, ymax=100.0)
+    axes[0].set_xlim(xmin=0, xmax=timeValues[-1])
+    axes[1].set_ylim(ymin=0, ymax=max(dataValues['rv']))
+    axes[1].set_xlim(xmin=0, xmax=timeValues[-1])
+
+    if haveThreadCounts:
+        axes[2].set_xlim(xmin=0, xmax=timeValues[-1])
 
     fig.tight_layout()
 
@@ -167,7 +230,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("inputFile", help="The input filename containing the raw data recording to plot.")
-    parser.add_argument("--combined", action='store_true', help="Plot the CPU and Memory RSS values in a combined single plot.")
+    parser.add_argument("--combined", action='store_true', help="Plot the recorded values in a combined single plot.")
     parser.add_argument("--areaplot", action='store_true', help="Plot the values as solid areas, rather than line plots.")
 
     args = parser.parse_args()

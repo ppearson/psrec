@@ -46,10 +46,12 @@ impl ProcessSampler for ProcessSamplerBasic {
         let process = &mut self.process;
 
         let cpu_usage_perc = process.cpu_percent().unwrap_or(0.0);
+
+        // Note: num_threads() is not implemented yet in psutil...
         
         if let Ok(mem) = process.memory_info() {
             // set 0.0 as the time, it will be replaced later...
-            let new_sample = Sample { elapsed_time: 0.0, cpu_usage: cpu_usage_perc, curr_rss: mem.rss() };
+            let new_sample = Sample { elapsed_time: 0.0, cpu_usage: cpu_usage_perc, curr_rss: mem.rss(), thread_count: 0 };
             return Some(new_sample);
         }
 

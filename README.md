@@ -18,11 +18,13 @@ General command line args are:
 
 Additional option args that are supported:
 
-* `--interval <2>`: Set the interval period in seconds between each sample recording (default is 1 second). The value specified can have a unit suffix (s/m/h), so you can specify `1m` for "1 minute". If a unit suffix char is not provided, seconds are assumed as the unit.
+* `--interval <2>`: Set the interval period in seconds between each sample recording (default is 1 second). The value specified can have a unit suffix (ms/s/m/h), so you can specify `1m` for "1 minute". If a unit suffix char is not provided, seconds are assumed as the unit.
 * `--duration <30m>`: Set the duration for which to record samples for. By default, no duration limit will be applied, and psrec will record the process until the process exits. The value specified can have a unit suffix (s/m/h), so you can specify `30m` for "30 minutes". If a unit suffix char is not provided, seconds are assumed as the unit.
 * `--print-values`: Print out the recorded values to stderr live as they're sampled from the process.
 * `--export <path_to_save_file.csv>`: Save the recorded results to this file.
-* `--absolute-cpu-usage`: If specified, psrec will not normalise the CPU usage sample values to the number of threads on the machine. By default it does, and full all thread CPU usage will be 100.0. With this flag option set, it will be 100.0 x number of threads. 
+* `--normalise-cpu-usage`: If specified, psrec will normalise the CPU usage sample values to the number of threads on the machine (so full CPU usage on all cores/threads will be 100%). By default it does not, and produces CPU values.
+* `--record_child_processes`: If specified, psrec will include stats for child processes as well as the main process.
+* `--record_thread_count`: If specified, psrec will also record additional information about the thread count of the process.
 
 Attach Mode - Attaching to an existing process
 ----------------------------------------------

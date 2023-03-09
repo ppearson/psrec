@@ -11,8 +11,6 @@ psutil = { version = "3.2.2", default-features = false, features = ["cpu", "proc
 argh = "0.1.9"
 procfs = { version = "0.15.1", default-features = false, features = [] }
 
-#num_threads = "0.1.6"
-
 # use something minimal, rather than chrono
 #time = "0.3.14"
 # or not...

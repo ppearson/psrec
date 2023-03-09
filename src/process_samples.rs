@@ -30,6 +30,9 @@ pub struct Sample {
     // in bytes
     pub curr_rss:           u64,
 
+
+    pub thread_count:       u32,
+
 //    pub peak_rss:           u64,
 }
 
@@ -39,17 +42,22 @@ pub struct ProcessRecording {
     // start timestamp
     pub start_timestamp:        DateTime<Local>,
 
+    pub normalised_cpu_usage:   bool,
+
+    pub have_thread_counts:     bool,
+
     pub initial_process_id:     u32,
     pub current_process_id:     u32,
 
     // used for normalising CPU usage if needed... (depending on configuration)
+    // Note: this functionality is only useful in the most basic situations...
     pub num_system_threads:     u32,
 
     pub samples:        Vec<Sample>,
 }
 
 impl ProcessRecording {
-    pub fn new(_recorder_params: &ProcessRecordParams, initial_process_id: u32) -> ProcessRecording {
+    pub fn new(recorder_params: &ProcessRecordParams, initial_process_id: u32) -> ProcessRecording {
         let mut num_threads = 1u32;
         
         // Note: this is only going to be correct for the most basic scenarios... i.e. it returns the wrong value
@@ -58,14 +66,12 @@ impl ProcessRecording {
             num_threads = nt.get() as u32;
         }
         ProcessRecording { start_timestamp: Local::now(),
+                           normalised_cpu_usage: recorder_params.record_thread_count,
+                           have_thread_counts: recorder_params.record_thread_count,
                            initial_process_id,
                            current_process_id: initial_process_id,
                            num_system_threads: num_threads,
-                           samples: Vec::with_capacity(256) }
-    }
-
-    pub fn set_start_time(&mut self) {
-        self.start_timestamp = Local::now();
+                           samples: Vec::with_capacity(512) }
     }
 
     // TODO: use Result properly for return code...
@@ -80,12 +86,25 @@ impl ProcessRecording {
         if add_metadata_comments {
             writeln!(buf_writer, "# Process recording.").unwrap();
 
-            writeln!(buf_writer, "# Time elapsed,CPU Usage,RSS").unwrap();
+            if self.have_thread_counts {
+                writeln!(buf_writer, "# Time elapsed,CPU Usage,RSS,Thread Count").unwrap();
+            }
+            else {
+                writeln!(buf_writer, "# Time elapsed,CPU Usage,RSS").unwrap();
+            }
         }
 
-        for sample in &self.samples {
-            writeln!(buf_writer, "{:.1},{:.1},{}", sample.elapsed_time, sample.cpu_usage, sample.curr_rss).unwrap();
+        if self.have_thread_counts {
+            for sample in &self.samples {
+                writeln!(buf_writer, "{:.1},{:.1},{},{}", sample.elapsed_time, sample.cpu_usage, sample.curr_rss, sample.thread_count).unwrap();
+            }
         }
+        else {
+            for sample in &self.samples {
+                writeln!(buf_writer, "{:.1},{:.1},{}", sample.elapsed_time, sample.cpu_usage, sample.curr_rss).unwrap();
+            }
+        }
+        
 
         buf_writer.flush().unwrap();
 

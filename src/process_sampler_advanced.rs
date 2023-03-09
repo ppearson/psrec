@@ -24,8 +24,7 @@ use std::time::Instant;
 //       to extract more advanced info.
 
 pub struct ProcessSamplerAdvanced {
-    recorder_params: ProcessRecordParams,
-    pid: u32,
+    //recorder_params: ProcessRecordParams,
     process: Process,
 
     // cached stuff 
@@ -45,10 +44,10 @@ pub struct ProcessSamplerAdvanced {
 }
 
 impl ProcessSamplerAdvanced {
-    pub fn new(recorder_params: ProcessRecordParams, pid: u32) -> Option<ProcessSamplerAdvanced> {
+    pub fn new(_recorder_params: ProcessRecordParams, pid: u32) -> Option<ProcessSamplerAdvanced> {
         let process = Process::new(pid as i32);
         if let Err(err) = process {
-            eprintln!("Error accessing process pid: {}, {}", pid, err.to_string());
+            eprintln!("Error accessing process pid: {}, {}", pid, err);
             return None;
         }
 
@@ -62,15 +61,15 @@ impl ProcessSamplerAdvanced {
         
         let stat = &process.stat();
         if let Err(err) = stat {
-            eprintln!("Error getting stat info from process with pid: {}, {}", pid, err.to_string());
+            eprintln!("Error getting stat info from process with pid: {}, {}", pid, err);
             return None;
         }
 
         let instant = Instant::now();
         let stat = stat.as_ref().unwrap();
     
-        Some(ProcessSamplerAdvanced { recorder_params, pid,
-                                    process: process,
+        Some(ProcessSamplerAdvanced { //recorder_params, 
+                                    process,
                                     tps,
                                     page_size,
                                     last_utime: stat.utime,
@@ -86,7 +85,7 @@ impl ProcessSampler for ProcessSamplerAdvanced {
     fn get_sample(&mut self) -> Option<Sample> {
         let stat = &self.process.stat();
         if let Err(err) = stat {
-            eprintln!("Error getting stat info from process within get_sample() call: {}", err.to_string());
+            eprintln!("Error getting stat info from process within get_sample() call: {}", err);
             return None;
         }
 
@@ -99,18 +98,6 @@ impl ProcessSampler for ProcessSamplerAdvanced {
             return None;
         }
 
-        // let kern_stat = procfs::KernelStats::new();
-        // if let Err(err) = kern_stat {
-        //     eprintln!("Error getting stat info from kernel within get_sample() call: {}", err.to_string());
-        //     return None;
-        // }
-
-        // let kern_stat = kern_stat.unwrap();
-
-        // calc total possible
-        // TODO: do we also want iowait, idle, irq, softirq as well?
- //       let total_possible_time = kern_stat.total.user + kern_stat.total.system + kern_stat.total.idle + kern_stat.total.nice;
-
         let last_full_time_count = (self.last_utime + self.last_stime + self.last_cutime + self.last_cstime) as f64;
 
         let this_full_time_count = (stat.utime + stat.stime + stat.cutime as u64 + stat.cstime as u64) as f64;
@@ -119,9 +106,12 @@ impl ProcessSampler for ProcessSamplerAdvanced {
         // let cpu_usage =  ((this_full_time_count - last_full_time_count) * 1000 / self.tps ) as f64;
 
         // this gives us absolute CPU usage, i.e. one full thread is 100.0, four threads is 400.0, etc.
+        // TODO: is using the actual elapsed time the correct thing to do?
         let cpu_usage = 100.0 * (((this_full_time_count - last_full_time_count) / self.tps as f64) / elapsed);
 
         let full_rss = stat.rss * self.page_size;
+
+        let thread_count = stat.num_threads as u32;
 
         // replace cached values
         self.last_time_instant = instant;
@@ -131,7 +121,7 @@ impl ProcessSampler for ProcessSamplerAdvanced {
         self.last_cstime = stat.cstime as u64;
 
         // set 0.0 as the time, it will be replaced later...
-        let new_sample = Sample { elapsed_time: 0.0, cpu_usage: cpu_usage as f32, curr_rss: full_rss };
+        let new_sample = Sample { elapsed_time: 0.0, cpu_usage: cpu_usage as f32, curr_rss: full_rss, thread_count };
         return Some(new_sample);
     }
 }

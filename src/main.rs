@@ -47,16 +47,20 @@ struct MainArgs {
 //    #[argh(switch)]
 //    absolute_timestamps: bool,
 
+    /// whether to record cpu usage as normalised quantities (out of 100%), instead of Absolute quantities (default).
+    /// Absolute will scale over 100.0 for the number of threads, so 800.0 will be 8 threads using full CPU.
+    /// Normalised will be normalised to 100.0, so instead of 800.0 in the above example, it will be 100.0,
+    /// and 1 thread using 100% CPU will be 15.0%.
+    #[argh(switch, short = 'n')]
+    normalise_cpu_usage: bool,
+
     /// whether to record the data for child processes as well as the main process. Defaults to off (false).
     #[argh(switch, short = 'c')]
     record_child_processes: bool,
 
-    /// whether to record cpu usage as Absolute quantities, instead of Normalised quantities (default).
-    /// Absolute will scale over 100.0 for the number of threads, so 800.0 will be 8 threads using full CPU.
-    /// Normalised will be normalised to 100.0, so instead of 800.0 in the above example, it will be 100.0,
-    /// and 1 thread using 100% CPU will be 15.0%.
-    #[argh(switch, short = 'a')]
-    absolute_cpu_usage: bool,
+    /// whether to record the current thread count of the process
+    #[argh(switch, short = 't')]
+    record_thread_count: bool,
 
     /// whether to print out values live as process is being recorded to stderr
     #[argh(switch)]
@@ -71,7 +75,9 @@ struct MainArgs {
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand)]
 enum SubCommandEnum {
+    // Start the specified process with optional command lines
     Start(SubCommandStart),
+    // Attach to a process based off the provided process ID
     Attach(SubCommandAttach),
 }
 
@@ -105,14 +111,17 @@ fn main() {
 
     // TODO: something better than this... pass in args to ProcessRecordParams?
     //       or at least encapsulate it somewhere...
-    if args.absolute_cpu_usage {
-        record_params.set_normalise_cpu_usage(false);
+    if args.normalise_cpu_usage {
+        record_params.set_normalise_cpu_usage(args.normalise_cpu_usage);
     }
     if args.print_values {
         record_params.set_print_values(true);
     }
     if args.record_child_processes {
         record_params.set_record_child_processes(true);
+    }
+    if args.record_thread_count {
+        record_params.set_record_thread_count(true);
     }
 
     let mut recording_results: Option<ProcessRecording> = None;
