@@ -22,6 +22,8 @@ use crate::process_samples::*;
 use crate::utils::convert_time_period_string_to_ms;
 
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use psutil::process::Process;
@@ -108,7 +110,7 @@ impl ProcessRecordParams {
 }
 
 pub trait ProcessRecorder {
-    fn start(&mut self) -> bool;
+    fn start(&mut self, cancel_flag: Arc<AtomicBool>) -> bool;
 
     fn get_recording(&self) -> ProcessRecording;
 }
@@ -241,7 +243,7 @@ impl ProcessRecorderAttach {
 }
 
 impl ProcessRecorder for ProcessRecorderAttach {
-    fn start(&mut self) -> bool {
+    fn start(&mut self, cancel_flag: Arc<AtomicBool>) -> bool {
 
         if !self.core.init_sampler() {
             eprintln!("Error initialising process sampler.");
@@ -276,6 +278,11 @@ impl ProcessRecorder for ProcessRecorderAttach {
 
             while self.core.process_is_running() {
                 self.core.record_sample();
+
+                if cancel_flag.load(Ordering::SeqCst) {
+                    eprintln!("Manually cancelled, recording has stopped (process might continue running).");
+                    return true;
+                }
     
                 // TODO: this suffers from a tiny bit of drift...
                 std::thread::sleep(sleep_duration);
@@ -295,6 +302,11 @@ impl ProcessRecorder for ProcessRecorderAttach {
 
             while self.core.process_is_running() {
                 self.core.record_sample();
+
+                if cancel_flag.load(Ordering::SeqCst) {
+                    eprintln!("Manually cancelled, recording has stopped (process might continue running).");
+                    return true;
+                }
     
                 // TODO: this suffers from a tiny bit of drift...
                 std::thread::sleep(sleep_duration);
@@ -351,7 +363,7 @@ impl ProcessRecorderRun {
 }
 
 impl ProcessRecorder for ProcessRecorderRun {
-    fn start(&mut self) -> bool {
+    fn start(&mut self, cancel_flag: Arc<AtomicBool>) -> bool {
         // spawn a forked process to run the process we're going to monitor in...
 
         let mut command = Command::new(&self.command);
@@ -406,6 +418,11 @@ impl ProcessRecorder for ProcessRecorderRun {
 
                 while self.check_process_is_running() {
                     self.core.record_sample();
+
+                    if cancel_flag.load(Ordering::SeqCst) {
+                        eprintln!("Manually cancelled, recording has stopped (process might continue running).");
+                        return true;
+                    }
     
                     // TODO: this suffers from a tiny bit of drift...
                     std::thread::sleep(sleep_duration);
@@ -425,6 +442,11 @@ impl ProcessRecorder for ProcessRecorderRun {
 
                 while self.check_process_is_running() {
                     self.core.record_sample();
+
+                    if cancel_flag.load(Ordering::SeqCst) {
+                        eprintln!("Manually cancelled, recording has stopped (process might continue running).");
+                        return true;
+                    }
     
                     // TODO: this suffers from a tiny bit of drift...
                     std::thread::sleep(sleep_duration);

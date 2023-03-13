@@ -97,7 +97,7 @@ def readDataValuesFromCSVFile(filename):
     values = {'tv':timeValues, 'cv':cpuValues, 'rv':rssValues, 'tcv':threadCountsValues, 'tu':timeUnit, 'ru':rssUnit, 'mcv':maxCPUValue}
     return values
 
-def generateBasicCombinedPlot(dataValues, areaPlot):
+def generateBasicCombinedPlot(dataValues, areaPlot, verticalGridLines):
     fig, ax1 = plt.subplots(1, 1)
 
     fig.tight_layout()
@@ -134,6 +134,8 @@ def generateBasicCombinedPlot(dataValues, areaPlot):
     ax2.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
     
     ax1.yaxis.grid(color='lightgray')
+    if verticalGridLines:
+        ax1.xaxis.grid(color='lightgray')
 
     fig.tight_layout()
 
@@ -141,13 +143,13 @@ def generateBasicCombinedPlot(dataValues, areaPlot):
     if isCPUDataPossiblyAbsolute:
         ax1.set_ylim(ymin=0, ymax=dataValues['mcv'])
     else:
-        ax1.set_ylim(ymin=0, ymax=100.0)
+        ax1.set_ylim(ymin=0, ymax=101.0)
     ax1.set_xlim(xmin=0, xmax=timeValues[-1])
-    ax2.set_ylim(ymin=0, ymax=max(dataValues['rv']))
+    ax2.set_ylim(ymin=0, ymax=None)
     ax2.set_xlim(xmin=0, xmax=timeValues[-1])
     plt.show()
 
-def generateBasicSeparatePlot(dataValues, areaPlot):
+def generateBasicSeparatePlot(dataValues, areaPlot, verticalGridLines):
     haveThreadCounts = len(dataValues['tcv']) > 0
 
     fig = None
@@ -174,6 +176,8 @@ def generateBasicSeparatePlot(dataValues, areaPlot):
     isCPUDataPossiblyAbsolute = dataValues['mcv'] > 105.0
 
     axes[0].yaxis.grid(color='lightgray')
+    if verticalGridLines:
+        axes[0].xaxis.grid(color='lightgray')
     if areaPlot:
         axes[0].fill_between(timeValues, dataValues['cv'], color='blue', alpha=0.7)
     else:
@@ -184,6 +188,8 @@ def generateBasicSeparatePlot(dataValues, areaPlot):
     axes[0].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
     
     axes[1].yaxis.grid(color='lightgray')
+    if verticalGridLines:
+        axes[1].xaxis.grid(color='lightgray')
     if areaPlot:
         axes[1].fill_between(timeValues, dataValues['rv'], color='red', alpha=0.7)
     else:
@@ -197,6 +203,8 @@ def generateBasicSeparatePlot(dataValues, areaPlot):
 
     if haveThreadCounts:
         axes[2].yaxis.grid(color='lightgray')
+        if verticalGridLines:
+            axes[2].xaxis.grid(color='lightgray')
         if areaPlot:
             axes[2].fill_between(timeValues, dataValues['tcv'], color='green', alpha=0.7)
         else:
@@ -211,33 +219,33 @@ def generateBasicSeparatePlot(dataValues, areaPlot):
     if isCPUDataPossiblyAbsolute:
         axes[0].set_ylim(ymin=0, ymax=dataValues['mcv'])
     else:
-        axes[0].set_ylim(ymin=0, ymax=100.0)
+        axes[0].set_ylim(ymin=0, ymax=101.0)
     axes[0].set_xlim(xmin=0, xmax=timeValues[-1])
-    axes[1].set_ylim(ymin=0, ymax=max(dataValues['rv']))
+    axes[1].set_ylim(ymin=0, ymax=None)
     axes[1].set_xlim(xmin=0, xmax=timeValues[-1])
 
     if haveThreadCounts:
-        axes[2].set_xlim(xmin=0, xmax=timeValues[-1])
+        axes[2].set_xlim(xmin=0, xmax=None)
 
     fig.tight_layout()
 
     plt.show()
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Error: no input file provided.")
-        exit(-1)
-
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+                    prog='psrec generate plot',
+                    description='Draws a plot of the data the main psrec program recorded, using Python and matplotlib',)
+    
     parser.add_argument("inputFile", help="The input filename containing the raw data recording to plot.")
     parser.add_argument("--combined", action='store_true', help="Plot the recorded values in a combined single plot.")
     parser.add_argument("--areaplot", action='store_true', help="Plot the values as solid areas, rather than line plots.")
+    parser.add_argument("--verticalgrid", action='store_true', help="Draw vertical grid lines for the Time axis.")
 
     args = parser.parse_args()
 
     dataValues = readDataValuesFromCSVFile(args.inputFile)
     if args.combined:
-        generateBasicCombinedPlot(dataValues, args.areaplot)
+        generateBasicCombinedPlot(dataValues, args.areaplot, args.verticalgrid)
     else:
-        generateBasicSeparatePlot(dataValues, args.areaplot)
+        generateBasicSeparatePlot(dataValues, args.areaplot, args.verticalgrid)
     

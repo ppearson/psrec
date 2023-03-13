@@ -22,13 +22,24 @@ mod process_samples;
 mod process_recorder;
 mod utils;
 
+use std::sync::atomic::{AtomicBool};
+use std::sync::Arc;
+
 use argh::FromArgs;
-use process_samples::ProcessRecording;
 
 use crate::process_recorder::*;
+use crate::process_samples::ProcessRecording;
 
+// TODO: this is pretty massochistic just to print a help banner/message formatted somewhat as I want it,
+//       it's probably worth using another command line parser crate which allows better flexibility,
+//       but this is one of the smallest code-size ones I've found...
 #[derive(FromArgs)]
-/// Top-level command.
+#[argh(description = r#"psrec 0.8.
+Copyright 2022-2023 Peter Pearson.
+
+A utility to record information about process' execution statistics, e.g. cpu and memory usage."#,
+       example = "psrec -i 250ms -c -e /tmp/outfile1.csv attach <pid>")
+]
 struct MainArgs {
     #[argh(subcommand)]
     command: SubCommandEnum,
@@ -47,10 +58,15 @@ struct MainArgs {
 //    #[argh(switch)]
 //    absolute_timestamps: bool,
 
-    /// whether to record cpu usage as normalised quantities (out of 100%), instead of Absolute quantities (default).
-    /// Absolute will scale over 100.0 for the number of threads, so 800.0 will be 8 threads using full CPU.
+    /// whether to record cpu usage as 'normalised' values (out of 100%), instead of Absolute values (default).
+    /// Absolute values will scale over 100.0 for the number of threads, so 800.0 will be 8 threads using full CPU.
     /// Normalised will be normalised to 100.0, so instead of 800.0 in the above example, it will be 100.0,
-    /// and 1 thread using 100% CPU will be 15.0%.
+    /// and 1 thread using 100% CPU will be 15.0% (assuming the computer has 8 cores/threads).
+    /// 
+    /// Note: this will only work in the most basic of scenarios: i.e. where std::thread::available_parallelism()
+    /// returns the number of threads the process being recorded will be running on. The normalised value will be
+    /// in other more complex scenarios, e.g. running under cgroups environments that mask/limit the CPU cores a
+    /// process can run on for example.
     #[argh(switch, short = 'n')]
     normalise_cpu_usage: bool,
 
@@ -126,6 +142,21 @@ fn main() {
 
     let mut recording_results: Option<ProcessRecording> = None;
 
+    // variable to allow interrupting with Ctrl+C handler...
+    let has_been_cancelled_flag = Arc::new(AtomicBool::new(false));
+
+    // register Ctrl+C handler...
+    let cancel_atomic = has_been_cancelled_flag.clone();
+    let res = ctrlc::set_handler(move || {
+        // set our atomic boolean to true, signalling we want to exit the recording loop
+        cancel_atomic.store(true, std::sync::atomic::Ordering::SeqCst);
+    });
+
+    if let Err(err) = res {
+        eprintln!("Warning: Could not register Ctrl+C interrupt handler: {}", err);
+        // TODO: maybe we want to abort instead? Or use command line args to control any logic here?
+    }
+
     if let SubCommandEnum::Attach(attach) = args.command {
         eprintln!("Attaching to process PID: {}...", attach.pid);
 
@@ -137,7 +168,7 @@ fn main() {
 
         let mut recorder: ProcessRecorderAttach = recorder.unwrap();
         // Note: start() prints some progress...
-        recorder.start();
+        recorder.start(has_been_cancelled_flag);
 
         recording_results = Some(recorder.get_recording());
 
@@ -154,7 +185,7 @@ fn main() {
 
         let mut recorder: ProcessRecorderRun = recorder.unwrap();
         // Note: start() prints some progress...
-        recorder.start();
+        recorder.start(has_been_cancelled_flag);
 
         recording_results = Some(recorder.get_recording());
 

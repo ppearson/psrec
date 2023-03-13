@@ -36,7 +36,7 @@ This will attempt to attach to the process with the provided Process ID, and sta
 Start Mode - Starting a new process
 -----------------------------------
 
-    ./psrec --export <path_to_save_results.csv> start <path_to_application> [optional_command line args]
+    ./psrec --export <path_to_save_results.csv> start <path_to_application> [optional_command_line_args of app being launched]
 
 This will attempt to spawn off the specified process (with optional command line args to that process), and start recording the CPU usage and current RSS memory usage every second by default. After the process has finished, results will be saved to the file path provided by the `--export` command line arg.
 
