@@ -45,7 +45,7 @@ struct MainArgs {
     command: SubCommandEnum,
 
     #[argh(option, short = 'i')]
-    /// interval between each sample of the process in various suffix units (s/m/h). Default is 1 second.
+    /// interval between each sample of the process in various suffix units (ms/s/m/h). Default is 1 second.
     /// Not specifying a suffix unit char will use seconds.
     interval: Option<String>,
 
