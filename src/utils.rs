@@ -13,7 +13,7 @@
  ---------
 */
 
-// returns an Option<> tuple of the u64 value in seconds, plus a human-readable
+// returns an Option<> tuple of the u64 value in ms, plus a human-readable
 // string representation of the number with units
 pub fn convert_time_period_string_to_ms(str_val: &str) -> Option<(u64, String)> {
     // TODO: there's probably a better way of doing this...

@@ -50,7 +50,7 @@ pub struct ProcessRecording {
     pub current_process_id:     u32,
 
     // used for normalising CPU usage if needed... (depending on configuration)
-    // Note: this functionality is only useful in the most basic situations...
+    // Note: this functionality is only useful in the most basic scenarios...
     pub num_system_threads:     u32,
 
     pub samples:        Vec<Sample>,
