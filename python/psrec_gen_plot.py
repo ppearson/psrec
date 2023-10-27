@@ -39,12 +39,29 @@ def readDataValuesFromCSVFile(filename):
     rssUnit = "mb"
 
     maxCPUValue = 0.0
+    cpuType = None
+    systemThreads = None
 
     fData = open(filename, "r")
     for line in fData:
         if len(line) == 0:
             continue
         if line[0] == '#':
+            # see if it's a 'metadata' comment
+            if len(line) >= 4 and line[1] == '@':
+                # it should be a metadata item, starting after the '#@ ' string,
+                # so try and interpret it...
+                metadata = line[3:]
+                metadata_items = [x.strip() for x in metadata.split(':')]
+                if metadata_items[0] == "cputype":
+                    if metadata_items[1] == "normalised":
+                        cpuType = "normalised"
+                    elif metadata_items[1] == "absolute":
+                        cpuType = "absolute"
+                    else:
+                        print("Unexpected 'cputype' metadata value.")
+                elif metadata_items[0] == "systhreads":
+                    systemThreads = int(metadata_items[1])
             continue
         # is this a good idea? Might be better to error...
         if not ',' in line:
@@ -57,8 +74,8 @@ def readDataValuesFromCSVFile(filename):
 
         cpu = float(cpu)
 
-        # keep track of maximum cpu value, so we can later try and see if we can work
-        # if the values might be normalised or not (not completely robustly though...)
+        # keep track of the maximum cpu value, even if we know if the type is normalised or not, and if 
+        # we know the number of system threads from the metadata.
         if cpu > maxCPUValue:
             maxCPUValue = cpu
 
@@ -93,8 +110,14 @@ def readDataValuesFromCSVFile(filename):
         # TODO: could use numpy for this
         for i in range(len(rssValues)):
             rssValues[i] /= 1024.0
+    
+    # see if we need to guess what the cpu type was
+    if cpuType is None:
+        # we don't know, so try and guess...
+        cpuType = "absolute" if maxCPUValue > 102.0 else "normalised"
         
-    values = {'tv':timeValues, 'cv':cpuValues, 'rv':rssValues, 'tcv':threadCountsValues, 'tu':timeUnit, 'ru':rssUnit, 'mcv':maxCPUValue}
+    values = {'tv':timeValues, 'cv':cpuValues, 'rv':rssValues, 'tcv':threadCountsValues, 'tu':timeUnit, 'ru':rssUnit,
+              'cpuType':cpuType, 'sysThreads':systemThreads, 'mcv':maxCPUValue}
     return values
 
 def generateBasicCombinedPlot(dataValues, areaPlot, verticalGridLines):
@@ -111,10 +134,6 @@ def generateBasicCombinedPlot(dataValues, areaPlot, verticalGridLines):
 
     timeValues = dataValues['tv']
 
-    # this obviously isn't going to be completely robust, but on the assumption there'll be some values using more than
-    # one core, works fairly well in practice
-    isCPUDataPossiblyAbsolute = dataValues['mcv'] > 105.0
-
     ax2 = ax1.twinx()
     ax1.set_title('Process recording (CPU usage and RSS memory usage)')
     xLabel = "Time elapsed ({})".format("Minutes" if dataValues['tu'] == "m" else "Hours" if dataValues['tu'] == "h" else "Seconds")
@@ -126,7 +145,9 @@ def generateBasicCombinedPlot(dataValues, areaPlot, verticalGridLines):
         ax1.plot(timeValues, dataValues['cv'], color='blue')
         ax2.plot(timeValues, dataValues['rv'], color='red')
 
-    ax1.set_ylabel('CPU usage ({} %)'.format("absolute" if isCPUDataPossiblyAbsolute else "normalised"), color=CPU_AXIS_COLOUR)
+    isCPUDataAbsolute = dataValues['cpuType'] == "absolute"
+
+    ax1.set_ylabel('CPU usage ({} %)'.format("absolute" if isCPUDataAbsolute else "normalised"), color=CPU_AXIS_COLOUR)
     ax1.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
 
     rssYLabel = "Memory RSS ({})".format("MB" if dataValues['ru'] == "mb" else "GB")
@@ -139,8 +160,7 @@ def generateBasicCombinedPlot(dataValues, areaPlot, verticalGridLines):
 
     fig.tight_layout()
 
-    # set_xmargin() doesn't seem to work (or do what I thought it would?)...
-    if isCPUDataPossiblyAbsolute:
+    if isCPUDataAbsolute:
         ax1.set_ylim(ymin=0, ymax=dataValues['mcv'])
     else:
         ax1.set_ylim(ymin=0, ymax=101.0)
@@ -171,10 +191,6 @@ def generateBasicSeparatePlot(dataValues, areaPlot, verticalGridLines):
 
     timeValues = dataValues['tv']
 
-    # this obviously isn't going to be completely robust, but on the assumption there'll be some values using more than
-    # one core, works fairly well in practice
-    isCPUDataPossiblyAbsolute = dataValues['mcv'] > 105.0
-
     axes[0].yaxis.grid(color='lightgray')
     if verticalGridLines:
         axes[0].xaxis.grid(color='lightgray')
@@ -183,8 +199,11 @@ def generateBasicSeparatePlot(dataValues, areaPlot, verticalGridLines):
     else:
         axes[0].plot(timeValues, dataValues['cv'], color='blue')
     xLabel = "Time elapsed ({})".format("Minutes" if dataValues['tu'] == "m" else "Hours" if dataValues['tu'] == "h" else "Seconds")
+
+    isCPUDataAbsolute = dataValues['cpuType'] == "absolute"
+
     axes[0].set_xlabel(xLabel)
-    axes[0].set_ylabel('CPU usage ({} %)'.format("absolute" if isCPUDataPossiblyAbsolute else "normalised"))
+    axes[0].set_ylabel('CPU usage ({} %)'.format("absolute" if isCPUDataAbsolute else "normalised"))
     axes[0].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
     
     axes[1].yaxis.grid(color='lightgray')
@@ -215,8 +234,7 @@ def generateBasicSeparatePlot(dataValues, areaPlot, verticalGridLines):
         axes[2].set_ylabel(threadsYLabel)
         axes[2].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
 
-    # set_xmargin() doesn't seem to work (or do what I thought it would?)...
-    if isCPUDataPossiblyAbsolute:
+    if isCPUDataAbsolute:
         axes[0].set_ylim(ymin=0, ymax=dataValues['mcv'])
     else:
         axes[0].set_ylim(ymin=0, ymax=101.0)

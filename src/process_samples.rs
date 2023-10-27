@@ -30,7 +30,7 @@ pub struct Sample {
     // in bytes
     pub curr_rss:           u64,
 
-
+    // number of process threads
     pub thread_count:       u32,
 
 //    pub peak_rss:           u64,
@@ -44,6 +44,7 @@ pub struct ProcessRecording {
 
     pub normalised_cpu_usage:   bool,
 
+    // whether we're recording the number of process threads...
     pub have_thread_counts:     bool,
 
     pub initial_process_id:     u32,
@@ -66,7 +67,7 @@ impl ProcessRecording {
             num_threads = nt.get() as u32;
         }
         ProcessRecording { start_timestamp: Local::now(),
-                           normalised_cpu_usage: recorder_params.record_thread_count,
+                           normalised_cpu_usage: recorder_params.normalise_cpu_usage,
                            have_thread_counts: recorder_params.record_thread_count,
                            initial_process_id,
                            current_process_id: initial_process_id,
@@ -92,6 +93,9 @@ impl ProcessRecording {
             else {
                 writeln!(buf_writer, "# Time elapsed,CPU Usage,RSS").unwrap();
             }
+
+            writeln!(buf_writer, "#@ cputype: {}", if self.normalised_cpu_usage { "normalised" } else { "absolute" }).unwrap();
+            writeln!(buf_writer, "#@ systhreads: {}", self.num_system_threads).unwrap();
         }
 
         if self.have_thread_counts {
