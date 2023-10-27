@@ -80,7 +80,7 @@ pub fn convert_time_period_string_to_ms(str_val: &str) -> Option<(u64, String)> 
 
     let final_time_in_ms = parse_result * mult_to_ms;
 
-    return Some((final_time_in_ms, human_readable_string));
+    Some((final_time_in_ms, human_readable_string))
 }
 
 

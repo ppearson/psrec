@@ -122,6 +122,6 @@ impl ProcessSampler for ProcessSamplerAdvanced {
 
         // set 0.0 as the time, it will be replaced later...
         let new_sample = Sample { elapsed_time: 0.0, cpu_usage: cpu_usage as f32, curr_rss: full_rss, thread_count };
-        return Some(new_sample);
+        Some(new_sample)
     }
 }

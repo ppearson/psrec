@@ -20,7 +20,7 @@ use psutil::process::Process;
 
 pub trait ProcessSampler {
     fn get_sample(&mut self) -> Option<Sample> {
-        return None;
+        None
     }
 }
 
@@ -55,6 +55,6 @@ impl ProcessSampler for ProcessSamplerBasic {
             return Some(new_sample);
         }
 
-        return None;
+        None
     }
 }

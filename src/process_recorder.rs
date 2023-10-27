@@ -89,7 +89,7 @@ impl ProcessRecordParams {
             }
         }
         
-        return params;
+        params
     }
 
     pub fn set_normalise_cpu_usage(&mut self, normalise_cpu_usage: bool) {
@@ -172,7 +172,7 @@ impl ProcessRecorderCore {
             self.sampler = Some(Box::new(new_basic_sampler.unwrap()));
         }
 
-        return true;
+        true
     }
 
     // Note: this apparently can't be relied on for processes we fork/spawn ourselves...
@@ -187,7 +187,7 @@ impl ProcessRecorderCore {
             return true;
         }
 
-        return false;
+        false
     }
 
     fn record_sample(&mut self) {
@@ -238,7 +238,7 @@ impl ProcessRecorderAttach {
         let mut core = ProcessRecorderCore::from_params(record_params);
         core.process = Some(process.unwrap());
 
-        return Some(ProcessRecorderAttach { record_params: record_params.clone(), core })
+        Some(ProcessRecorderAttach { record_params: record_params.clone(), core })
     }
 }
 
@@ -313,12 +313,12 @@ impl ProcessRecorder for ProcessRecorderAttach {
             }
         }
         
-        return true;
+        true
     }
 
     // TODO: get rid of the need to do this with a copy...
     fn get_recording(&self) -> ProcessRecording {
-        return self.core.recording.clone();
+        self.core.recording.clone()
     }
 }
 
@@ -340,7 +340,7 @@ impl ProcessRecorderRun {
             return None;
         }
 
-        return Some(ProcessRecorderRun { record_params: record_params.clone(), command: command.to_string(), args,
+        Some(ProcessRecorderRun { record_params: record_params.clone(), command: command.to_string(), args,
                                         core: ProcessRecorderCore::from_params(record_params), child_process: None })
     }
 
@@ -358,7 +358,7 @@ impl ProcessRecorderRun {
             Ok(None) =>             true, // still running
             Err(_err) =>            false, // not quite correct, but for the moment...
         };
-        return still_running;
+        still_running
     }
 }
 
@@ -456,11 +456,11 @@ impl ProcessRecorder for ProcessRecorderRun {
             return true;
         }
 
-        return false;
+        false
     }
 
     // TODO: get rid of the need to do this with a copy...
     fn get_recording(&self) -> ProcessRecording {
-        return self.core.recording.clone();
+        self.core.recording.clone()
     }
 }
