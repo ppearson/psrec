@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 
 '''
  psrec
@@ -17,7 +18,6 @@
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
 import argparse
 
 # *Very* basic script to use matplotlib to plot raw data saved from psrec
@@ -51,7 +51,7 @@ def readDataValuesFromCSVFile(filename):
             if len(line) >= 4 and line[1] == '@':
                 # it should be a metadata item, starting after the '#@ ' string,
                 # so try and interpret it...
-                metadata = line[3:]
+                metadata = line[2:]
                 metadata_items = [x.strip() for x in metadata.split(':')]
                 if metadata_items[0] == "cputype":
                     if metadata_items[1] == "normalised":
@@ -90,20 +90,23 @@ def readDataValuesFromCSVFile(filename):
         if len(items) > 3:
             threadCountsValues.append(int(items[3]))
     
+    # if there were no valid values, exit out...
+    if len(timeValues) == 0:
+        return None
+    
     # See what last time was, and if > 5 mins, use hours/minutes instead of seconds as the units
-    if len(timeValues) > 0:
-        if timeValues[-1] > (60.0 * 60.0 * 5.0):
-            # Use hours
-            timeUnit = "h"
-            # Also resize the numbers
-            for i in range(len(timeValues)):
-                timeValues[i] /= 3600.0
-        elif timeValues[-1] > (60.0 * 5.0):
-            # Use minutes
-            timeUnit = "m"
-            # Also resize the numbers
-            for i in range(len(timeValues)):
-                timeValues[i] /= 60.0
+    if timeValues[-1] > (60.0 * 60.0 * 5.0):
+        # Use hours
+        timeUnit = "h"
+        # Also resize the numbers
+        for i in range(len(timeValues)):
+            timeValues[i] /= 3600.0
+    elif timeValues[-1] > (60.0 * 5.0):
+        # Use minutes
+        timeUnit = "m"
+        # Also resize the numbers
+        for i in range(len(timeValues)):
+            timeValues[i] /= 60.0
     
     if rssUnit == "gb":
         # Resize numbers to GB size
@@ -262,6 +265,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataValues = readDataValuesFromCSVFile(args.inputFile)
+
+    if not dataValues:
+        print("Error: No valid recording data was found in the file specified to be plotted.");
+        exit(-1)
+
     if args.combined:
         generateBasicCombinedPlot(dataValues, args.areaplot, args.verticalgrid)
     else:

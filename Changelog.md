@@ -8,3 +8,6 @@ Version 0.9
 * Fixed issue with psrec not correctly recognising that attaching to a process, starting a process or
   creating a process sampler had failed, and so not reporting an error, and creating an empty
   export results file anyway for no reason.
+* Made psrec_gen_plot.py plotting Python script have a hashbang for easier execution.
+* Fixed some robustness issues with psrec_gen_plot.py plotting file, mainly when there was no valid
+  plot data to show.
