@@ -456,6 +456,9 @@ impl ProcessRecorder for ProcessRecorderRun {
             return true;
         }
 
+        // otherwise, spawning the task likely failed...
+        eprintln!("Error starting process: '{}'...", &self.command);
+
         false
     }
 

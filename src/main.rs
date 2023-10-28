@@ -22,8 +22,8 @@ mod process_samples;
 mod process_recorder;
 mod utils;
 
-use std::sync::atomic::{AtomicBool};
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use argh::FromArgs;
 
@@ -34,10 +34,10 @@ use crate::process_samples::ProcessRecording;
 //       it's probably worth using another command line parser crate which allows better flexibility,
 //       but this is one of the smallest code-size ones I've found...
 #[derive(FromArgs)]
-#[argh(description = r#"psrec 0.8.
+#[argh(description = r#"psrec 0.9.
 Copyright 2022-2023 Peter Pearson.
 
-A utility to record information about process' execution statistics, e.g. cpu and memory usage."#,
+A utility to record information about a process' execution statistics, e.g. cpu and memory usage."#,
        example = "psrec -i 250ms -c -e /tmp/outfile1.csv attach <pid>")
 ]
 struct MainArgs {
@@ -168,7 +168,10 @@ fn main() {
 
         let mut recorder: ProcessRecorderAttach = recorder.unwrap();
         // Note: start() prints some progress...
-        recorder.start(has_been_cancelled_flag);
+        if !recorder.start(has_been_cancelled_flag) {
+            // failed to create sampler, so error out...
+            return;
+        }
 
         recording_results = Some(recorder.get_recording());
 
@@ -179,13 +182,17 @@ fn main() {
 
         let recorder: Option<ProcessRecorderRun> = ProcessRecorderRun::new(&start.command, Some(start.args.clone()), &record_params);
         if recorder.is_none() {
+            // Note: this isn't actually that useful, as the process isn't actually started until start() is called...
             eprintln!("Error starting process...");
             return;
         }
 
         let mut recorder: ProcessRecorderRun = recorder.unwrap();
         // Note: start() prints some progress...
-        recorder.start(has_been_cancelled_flag);
+        if !recorder.start(has_been_cancelled_flag) {
+            // failed to start process, so return out
+            return;
+        }
 
         recording_results = Some(recorder.get_recording());
 
