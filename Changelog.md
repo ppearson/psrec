@@ -11,3 +11,7 @@ Version 0.9
 * Made psrec_gen_plot.py plotting Python script have a hashbang for easier execution.
 * Fixed some robustness issues with psrec_gen_plot.py plotting file, mainly when there was no valid
   plot data to show.
+* Added support for splitting the Start 'command' argument after a space char into further arguments for
+  the command to be started, so as to work around a limitation with the argh crate, and allow passing
+  through arbitrary commands to the processes to be started by specifying a single space-separated
+  command to run plus any optional arguments as a quoted 'command' argument.
