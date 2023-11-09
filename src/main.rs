@@ -38,7 +38,8 @@ use crate::process_samples::ProcessRecording;
 Copyright 2022-2023 Peter Pearson.
 
 A utility to record information about a process' execution statistics, e.g. cpu and memory usage."#,
-       example = "psrec -i 250ms -c -e /tmp/outfile1.csv attach <pid>")
+       example = r#"psrec -i 250ms -c -e /tmp/outfile1.csv attach <pid>
+psrec -i 1s -c -e /tmp/outfile2.csv start <command> [optional args]"#)
 ]
 struct MainArgs {
     #[argh(subcommand)]
@@ -64,9 +65,9 @@ struct MainArgs {
     /// and 1 thread using 100% CPU will be 15.0% (assuming the computer has 8 cores/threads).
     /// 
     /// Note: this will only work in the most basic of scenarios: i.e. where std::thread::available_parallelism()
-    /// returns the number of threads the process being recorded will be running on. The normalised value will be
-    /// in other more complex scenarios, e.g. running under cgroups environments that mask/limit the CPU cores a
-    /// process can run on for example.
+    /// returns the number of threads the process being recorded will be running on. The normalised value will likely
+    /// be incorrect in other more complex scenarios, e.g. running under cgroups environments that mask/limit the CPU
+    /// cores a process can run on for example.
     #[argh(switch, short = 'n')]
     normalise_cpu_usage: bool,
 
@@ -91,7 +92,7 @@ struct MainArgs {
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand)]
 enum SubCommandEnum {
-    // Start the specified process with optional command lines
+    // Start the specified process with optional command line args
     Start(SubCommandStart),
     // Attach to a process based off the provided process ID
     Attach(SubCommandAttach),
@@ -178,9 +179,38 @@ fn main() {
         eprintln!("Attached process has exited.");
     }
     else if let SubCommandEnum::Start(start) = args.command {
+        // first of all, see if 'start.command' has spaces in: if so, it's almost certainly a quoted string command line
+        // arg, which currently seems to be the only to "pass through" args via the argh crate, as otherwise it attempts
+        // to interpret them.
+        let mut command = start.command.clone();
+        let mut args: Option<Vec<String>> = None;
+
+        // see if there's a space in the command...
+        if let Some(pos) = command.find(' ') {
+            // create temporary, so we can split_at()
+            let temp_command = command.clone();
+            // if so assume there are "bundled" sequential args we want to extract after the first space
+            let (split_command, remainder) = temp_command.split_at(pos);
+            command = split_command.to_string();
+            let remainder = remainder.trim_start();
+            if !remainder.is_empty() {
+                args = Some(remainder.split(' ').map(str::to_string).collect());
+            }
+
+            // if there are further args in the command line args, append them afterwards
+            if !start.args.is_empty() {
+                if let Some(ref mut local_args) = &mut args {
+                    local_args.append(&mut start.args.clone());
+                }
+                else {
+                    args = Some(start.args.clone());
+                }
+            }
+        }
+
         eprintln!("Starting process: {}", start.command);
 
-        let recorder: Option<ProcessRecorderRun> = ProcessRecorderRun::new(&start.command, Some(start.args.clone()), &record_params);
+        let recorder: Option<ProcessRecorderRun> = ProcessRecorderRun::new(&command, args, &record_params);
         if recorder.is_none() {
             // Note: this isn't actually that useful, as the process isn't actually started until start() is called...
             eprintln!("Error starting process...");

@@ -14,7 +14,6 @@
 */
 
 use crate::process_samples::Sample;
-use crate::process_recorder::ProcessRecordParams;
 
 use psutil::process::Process;
 
@@ -25,19 +24,18 @@ pub trait ProcessSampler {
 }
 
 pub struct ProcessSamplerBasic {
-    recorder_params: ProcessRecordParams,
     process: Process,
 }
 
 impl ProcessSamplerBasic {
-    pub fn new(recorder_params: ProcessRecordParams, pid: u32) -> Option<ProcessSamplerBasic> {
+    pub fn new(pid: u32) -> Option<ProcessSamplerBasic> {
         let process = Process::new(pid);
         if let Err(err) = process {
             eprintln!("Error attaching to PID: {}, {}", pid, err);
             return None;
         }
 
-        Some(ProcessSamplerBasic { recorder_params, process: process.unwrap() })
+        Some(ProcessSamplerBasic { process: process.unwrap() })
     }
 }
 

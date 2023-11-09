@@ -168,7 +168,7 @@ impl ProcessRecorderCore {
         else {
             // handle the basic/backup case...
             // TODO: handle unwraps() correctly...
-            let new_basic_sampler = ProcessSamplerBasic::new(self.recorder_params.clone(), self.process.as_ref().unwrap().pid());
+            let new_basic_sampler = ProcessSamplerBasic::new(self.process.as_ref().unwrap().pid());
             self.sampler = Some(Box::new(new_basic_sampler.unwrap()));
         }
 

@@ -13,11 +13,11 @@
  ---------
 */
 
-use crate::process_sampler::{ProcessSampler};
+use crate::process_sampler::ProcessSampler;
 use crate::process_samples::Sample;
 use crate::process_recorder::ProcessRecordParams;
 
-use procfs::process::{Process};
+use procfs::process::Process;
 use std::time::Instant;
 
 // Note: this is the "advanced" sampler that only works on Linux, and uses the /proc/<pid> file system
