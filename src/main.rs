@@ -208,7 +208,7 @@ fn main() {
             }
         }
 
-        eprintln!("Starting process: {}", start.command);
+        eprintln!("Starting process: {}", command);
 
         let recorder: Option<ProcessRecorderRun> = ProcessRecorderRun::new(&command, args, &record_params);
         if recorder.is_none() {
