@@ -30,16 +30,17 @@ use argh::FromArgs;
 use crate::process_recorder::*;
 use crate::process_samples::ProcessRecording;
 
-// TODO: this is pretty massochistic just to print a help banner/message formatted somewhat as I want it,
+// TODO: this is pretty masochistic just to print a help banner/message formatted somewhat as I want it,
 //       it's probably worth using another command line parser crate which allows better flexibility,
 //       but this is one of the smallest code-size ones I've found...
 #[derive(FromArgs)]
-#[argh(description = r#"psrec 0.9.
+#[argh(description = r#"psrec 0.9.1.
 Copyright 2022-2023 Peter Pearson.
 
 A utility to record information about a process' execution statistics, e.g. cpu and memory usage."#,
        example = r#"psrec -i 250ms -c -e /tmp/outfile1.csv attach <pid>
-psrec -i 1s -c -e /tmp/outfile2.csv start <command> [optional args]"#)
+psrec -i 5s -c -e /tmp/outfile2.csv start <command>
+psrec -i 250ms -c -e /tmp/outfile3.csv start "<command_to_run> [additional_arg1] [additional_arg2]""#)
 ]
 struct MainArgs {
     #[argh(subcommand)]
