@@ -1,3 +1,9 @@
+Version 0.9.1
+-------------
+
+* Fixed an issue with the error message that's printed when starting the recorded process failed contains
+  the wrong string in the case that the start command was a quoted string with additional arguments.
+
 Version 0.9
 -----------
 
