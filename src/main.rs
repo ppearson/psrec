@@ -249,7 +249,7 @@ fn main() {
         if let Some(rec_results) = recording_results {
             // save the results
 
-            rec_results.save_to_csv_file(&export_path, true);
+            rec_results.save_to_csv_file(export_path, true);
 
             eprintln!("Saved results to file: {}", export_path);
         }
