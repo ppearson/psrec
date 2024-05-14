@@ -1,3 +1,9 @@
+Version 0.9.2
+-------------
+
+* Added check to verify that the directory path of any export results file to be written exists
+  before recording starts.
+
 Version 0.9.1
 -------------
 
