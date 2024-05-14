@@ -1,6 +1,6 @@
 /*
  psrec
- Copyright 2022-2023 Peter Pearson.
+ Copyright 2022-2024 Peter Pearson.
  Licensed under the Apache License, Version 2.0 (the "License");
  You may not use this file except in compliance with the License.
  You may obtain a copy of the License at
@@ -22,6 +22,7 @@ mod process_samples;
 mod process_recorder;
 mod utils;
 
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
@@ -34,8 +35,8 @@ use crate::process_samples::ProcessRecording;
 //       it's probably worth using another command line parser crate which allows better flexibility,
 //       but this is one of the smallest code-size ones I've found...
 #[derive(FromArgs)]
-#[argh(description = r#"psrec 0.9.1.
-Copyright 2022-2023 Peter Pearson.
+#[argh(description = r#"psrec 0.9.2.
+Copyright 2022-2024 Peter Pearson.
 
 A utility to record information about a process' execution statistics, e.g. cpu and memory usage."#,
        example = r#"psrec -i 250ms -c -e /tmp/outfile1.csv attach <pid>
@@ -142,6 +143,20 @@ fn main() {
         record_params.set_record_thread_count(true);
     }
 
+    // if we've been told to record results (not really sure we need it to be optional, but!)
+    if let Some(export_path) = &args.export {
+        // work out the directory the export path should be in here ahead of time, seeing as we (currently) write
+        // the file at the very end, so try and avoid common problems ahead of time...
+        if let Some(dir_path) = Path::new(export_path).parent() {
+            // check it exists (it could still not be write-able, but this is the most common problem...)
+            if !dir_path.exists() {
+                eprintln!("Error: directory path: '{}' for export path: '{}' does not seem to exist currently.",
+                    dir_path.display(), export_path);
+                return;
+            }
+        }
+    }
+
     let mut recording_results: Option<ProcessRecording> = None;
 
     // variable to allow interrupting with Ctrl+C handler...
@@ -230,7 +245,7 @@ fn main() {
         eprintln!("Recorded process has exited.");
     }
 
-    if let Some(export_path) = args.export {
+    if let Some(export_path) = &args.export {
         if let Some(rec_results) = recording_results {
             // save the results
 
