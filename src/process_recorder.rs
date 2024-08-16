@@ -48,11 +48,14 @@ pub struct ProcessRecordParams {
     // whether to print values to stderr as they're sampled live...
     pub print_values:           bool,
 
-    // whether to record details about any child processes
+    // whether to record details about any child processes (Linux-only currently, using ProcessSamplerAdvanced)
     pub record_child_processes: bool,
 
-    // whether to record the thread count of the process
+    // whether to record the thread count of the process (Linux-only currently, using ProcessSamplerAdvanced)
     pub record_thread_count:    bool,
+
+    // whether to record the count of open fd file handles (Linux-only currently, using ProcessSamplerAdvanced)
+    pub record_open_fd_count:   bool,
 }
 
 impl ProcessRecordParams {
@@ -65,7 +68,8 @@ impl ProcessRecordParams {
                                                normalise_cpu_usage: false,
                                                print_values: false,
                                                record_child_processes: false,
-                                               record_thread_count: false };
+                                               record_thread_count: false,
+                                               record_open_fd_count: false };
 
         if let Some(sample_interval_string) = sample_interval {
             if let Some(interval_ms) = convert_time_period_string_to_ms(&sample_interval_string) {
@@ -107,6 +111,10 @@ impl ProcessRecordParams {
     pub fn set_record_thread_count(&mut self, record_thread_count: bool) {
         self.record_thread_count = record_thread_count;
     }
+
+    pub fn set_record_open_fd_count(&mut self, record_open_fd_count: bool) {
+        self.record_open_fd_count = record_open_fd_count;
+    }
 }
 
 pub trait ProcessRecorder {
@@ -117,6 +125,8 @@ pub trait ProcessRecorder {
 
 pub struct ProcessRecorderCore {
     recorder_params:    ProcessRecordParams,
+
+    // actual process handle
     process:            Option<Process>,
 
     print_values:       bool,
@@ -144,7 +154,8 @@ impl ProcessRecorderCore {
         }
 
         let need_advanced = self.recorder_params.record_child_processes ||
-                            self.recorder_params.record_thread_count;
+                            self.recorder_params.record_thread_count ||
+                            self.recorder_params.record_open_fd_count;
  
         if need_advanced {
             #[cfg(target_os = "linux")]

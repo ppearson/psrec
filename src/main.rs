@@ -35,7 +35,7 @@ use crate::process_samples::ProcessRecording;
 //       it's probably worth using another command line parser crate which allows better flexibility,
 //       but this is one of the smallest code-size ones I've found...
 #[derive(FromArgs)]
-#[argh(description = r#"psrec 0.9.2.
+#[argh(description = r#"psrec 0.9.3.
 Copyright 2022-2024 Peter Pearson.
 
 A utility to record information about a process' execution statistics, e.g. cpu and memory usage."#,
@@ -77,9 +77,13 @@ struct MainArgs {
     #[argh(switch, short = 'c')]
     record_child_processes: bool,
 
-    /// whether to record the current thread count of the process
+    /// whether to record the current thread count of the process. Note: this currently only works on Linux.
     #[argh(switch, short = 't')]
     record_thread_count: bool,
+
+    /// whether to record the number of open file descriptors of the process. Note: this currently only works on Linux.
+    #[argh(switch, short = 'f')]
+    record_file_descriptor_count: bool,
 
     /// whether to print out values live as process is being recorded to stderr
     #[argh(switch)]
@@ -141,6 +145,9 @@ fn main() {
     }
     if args.record_thread_count {
         record_params.set_record_thread_count(true);
+    }
+    if args.record_file_descriptor_count {
+        record_params.set_record_open_fd_count(true);
     }
 
     // if we've been told to record results (not really sure we need it to be optional, but!)

@@ -49,7 +49,7 @@ impl ProcessSampler for ProcessSamplerBasic {
         
         if let Ok(mem) = process.memory_info() {
             // set 0.0 as the time, it will be replaced later...
-            let new_sample = Sample { elapsed_time: 0.0, cpu_usage: cpu_usage_perc, curr_rss: mem.rss(), thread_count: 0 };
+            let new_sample = Sample { elapsed_time: 0.0, cpu_usage: cpu_usage_perc, curr_rss: mem.rss(), thread_count: 0, fd_count: None };
             return Some(new_sample);
         }
 

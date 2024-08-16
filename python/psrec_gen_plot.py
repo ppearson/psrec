@@ -15,10 +15,9 @@
  ---------
 '''
 
+import argparse
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import numpy as np
-import argparse
 
 # *Very* basic script to use matplotlib to plot raw data saved from psrec
 # Designed (currently) to only use bare minimal libs (python + matplotlib)
@@ -32,8 +31,9 @@ def readDataValuesFromCSVFile(filename):
     timeValues = []
     cpuValues = []
     rssValues = []
-    # Note: this is optional
+    # Note: these are optional, and might therefore be empty
     threadCountsValues = []
+    fileDescriptorCountValues = []
 
     timeUnit = "s"
     rssUnit = "mb"
@@ -42,12 +42,15 @@ def readDataValuesFromCSVFile(filename):
     cpuType = None
     systemThreads = None
 
+    haveThreadCount = False
+    haveOpenFDCount = False
+
     fData = open(filename, "r")
     for line in fData:
         if len(line) == 0:
             continue
         if line[0] == '#':
-            # see if it's a 'metadata' comment
+            # see if it's a 'metadata' field comment
             if len(line) >= 4 and line[1] == '@':
                 # it should be a metadata item, starting after the '#@ ' string,
                 # so try and interpret it...
@@ -62,6 +65,14 @@ def readDataValuesFromCSVFile(filename):
                         print("Unexpected 'cputype' metadata value.")
                 elif metadata_items[0] == "systhreads":
                     systemThreads = int(metadata_items[1])
+            elif len(line) >= 5 and "CPU Usage" in line:
+                # it's the description of the fields (which will always have 'CPU Usage' in the string),
+                # so parse that to work out what additional fields might also be in the data
+                dataFieldItems = line[2:].strip().split(",")
+                if "Thread Count" in dataFieldItems:
+                    haveThreadCount = True
+                if "FD Count" in dataFieldItems:
+                    haveOpenFDCount = True
             continue
         # is this a good idea? Might be better to error...
         if not ',' in line:
@@ -74,7 +85,7 @@ def readDataValuesFromCSVFile(filename):
 
         cpu = float(cpu)
 
-        # keep track of the maximum cpu value, even if we know if the type is normalised or not, and if 
+        # keep track of the maximum cpu value, even if we know if the type is normalised or not, and if
         # we know the number of system threads from the metadata.
         if cpu > maxCPUValue:
             maxCPUValue = cpu
@@ -88,8 +99,17 @@ def readDataValuesFromCSVFile(filename):
         rssValues.append(rssVal)
 
         if len(items) > 3:
-            threadCountsValues.append(int(items[3]))
-    
+            # we have additional values, so work out what they are
+            if len(items) == 4:
+                if haveThreadCount:
+                    threadCountsValues.append(int(items[3]))
+                elif haveOpenFDCount:
+                    fileDescriptorCountValues.append(int(items[3]))
+            elif len(items) == 5:
+                # currently it should be both these in this order
+                threadCountsValues.append(int(items[3]))
+                fileDescriptorCountValues.append(int(items[4]))
+  
     # if there were no valid values, exit out...
     if len(timeValues) == 0:
         return None
@@ -119,11 +139,12 @@ def readDataValuesFromCSVFile(filename):
         # we don't know, so try and guess...
         cpuType = "absolute" if maxCPUValue > 102.0 else "normalised"
         
-    values = {'tv':timeValues, 'cv':cpuValues, 'rv':rssValues, 'tcv':threadCountsValues, 'tu':timeUnit, 'ru':rssUnit,
+    values = {'tv':timeValues, 'cv':cpuValues, 'rv':rssValues, 'tcv':threadCountsValues, 'fdcv':fileDescriptorCountValues,
+              'tu':timeUnit, 'ru':rssUnit,
               'cpuType':cpuType, 'sysThreads':systemThreads, 'mcv':maxCPUValue}
     return values
 
-def generateBasicCombinedPlot(dataValues, areaPlot, verticalGridLines):
+def generateBasicCombinedPlot(dataValues, args):
     fig, ax1 = plt.subplots(1, 1)
 
     fig.tight_layout()
@@ -141,10 +162,10 @@ def generateBasicCombinedPlot(dataValues, areaPlot, verticalGridLines):
     ax1.set_title('Process recording (CPU usage and RSS memory usage)')
     xLabel = "Time elapsed ({})".format("Minutes" if dataValues['tu'] == "m" else "Hours" if dataValues['tu'] == "h" else "Seconds")
     ax1.set_xlabel(xLabel)
-    if areaPlot:
+    if args.areaPlot:
         ax1.fill_between(timeValues, dataValues['cv'], color='blue', alpha=0.6)
         ax2.fill_between(timeValues, dataValues['rv'], color='red', alpha=0.6)
-    else:    
+    else:
         ax1.plot(timeValues, dataValues['cv'], color='blue')
         ax2.plot(timeValues, dataValues['rv'], color='red')
 
@@ -158,7 +179,7 @@ def generateBasicCombinedPlot(dataValues, areaPlot, verticalGridLines):
     ax2.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
     
     ax1.yaxis.grid(color='lightgray')
-    if verticalGridLines:
+    if args.verticalGridLines:
         ax1.xaxis.grid(color='lightgray')
 
     fig.tight_layout()
@@ -172,82 +193,115 @@ def generateBasicCombinedPlot(dataValues, areaPlot, verticalGridLines):
     ax2.set_xlim(xmin=0, xmax=timeValues[-1])
     plt.show()
 
-def generateBasicSeparatePlot(dataValues, areaPlot, verticalGridLines):
-    haveThreadCounts = len(dataValues['tcv']) > 0
+def generateBasicSeparatePlot(dataValues, args):
+    haveThreadCounts = len(dataValues['tcv']) > 0 and not args.nothreadcountplot
+    haveFDCounts = len(dataValues['fdcv']) > 0 and not args.nofiledescriptorplot
 
-    fig = None
-    axes = None
-
-    if haveThreadCounts:
-        fig, axes = plt.subplots(3, 1)
+    numPlots = 2
+    titleItems = []
+    if args.nocpuplot:
+        numPlots -= 1
     else:
-        fig, axes = plt.subplots(2, 1)
+        titleItems.append("CPU usage")
+    if args.norssplot:
+        numPlots -= 1
+    else:
+        titleItems.append("RSS memory usage")
+    if haveThreadCounts:
+        numPlots += 1
+        titleItems.append("Thread count")
+    if haveFDCounts:
+        numPlots += 1
+        titleItems.append("Open FD count")
+    
+    # there's no point plotting 0 items, and currently we don't support only plotting 1
+    # either as axes is not a subscriptable array in that scenario, so the code below doesn't
+    # support that currently.
+    if numPlots <= 1:
+        print("Error: psrec_gen_plot currently only supports plotting two or more plots at once.")
+        exit(-1)
+
+    fig, axes = plt.subplots(numPlots, 1)
 
     fig.tight_layout()
     fig.set_figwidth(15)
     fig.set_figheight(8)
 
-    if haveThreadCounts:
-        fig.suptitle('Process recording (CPU usage, RSS memory usage and Thread Count)')
-    else:
-        fig.suptitle('Process recording (CPU usage and RSS memory usage)')
+    titleText = ", ".join(titleItems[:-1]) + " and " + titleItems[-1] if len(titleItems) > 1 else titleItems[-1]
+    fig.suptitle('Process recording ({})'.format(titleText))
 
     timeValues = dataValues['tv']
-
-    axes[0].yaxis.grid(color='lightgray')
-    if verticalGridLines:
-        axes[0].xaxis.grid(color='lightgray')
-    if areaPlot:
-        axes[0].fill_between(timeValues, dataValues['cv'], color='blue', alpha=0.7)
-    else:
-        axes[0].plot(timeValues, dataValues['cv'], color='blue')
     xLabel = "Time elapsed ({})".format("Minutes" if dataValues['tu'] == "m" else "Hours" if dataValues['tu'] == "h" else "Seconds")
 
-    isCPUDataAbsolute = dataValues['cpuType'] == "absolute"
-
-    axes[0].set_xlabel(xLabel)
-    axes[0].set_ylabel('CPU usage ({} %)'.format("absolute" if isCPUDataAbsolute else "normalised"))
-    axes[0].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
-    
-    axes[1].yaxis.grid(color='lightgray')
-    if verticalGridLines:
-        axes[1].xaxis.grid(color='lightgray')
-    if areaPlot:
-        axes[1].fill_between(timeValues, dataValues['rv'], color='red', alpha=0.7)
-    else:
-        axes[1].plot(timeValues, dataValues['rv'], color='red')
-    axes[1].set_xlabel(xLabel)
-
-    rssYLabel = "Memory RSS ({})".format("MB" if dataValues['ru'] == "mb" else "GB")
-    axes[1].set_ylabel(rssYLabel)
-    axes[1].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
-    #axes[1].get_yaxis().set_minor_locator(mpl.ticker.AutoMinorLocator())
-
-    if haveThreadCounts:
-        axes[2].yaxis.grid(color='lightgray')
-        if verticalGridLines:
-            axes[2].xaxis.grid(color='lightgray')
-        if areaPlot:
-            axes[2].fill_between(timeValues, dataValues['tcv'], color='green', alpha=0.7)
+    nextIndex = 0
+    if not args.nocpuplot:
+        axes[nextIndex].yaxis.grid(color='lightgray')
+        if args.verticalgrid:
+            axes[nextIndex].xaxis.grid(color='lightgray')
+        if args.areaplot:
+            axes[nextIndex].fill_between(timeValues, dataValues['cv'], color='blue', alpha=0.7)
         else:
-            axes[2].plot(timeValues, dataValues['tcv'], color='green')
-        axes[2].set_xlabel(xLabel)
+            axes[nextIndex].plot(timeValues, dataValues['cv'], color='blue')
+        
+        isCPUDataAbsolute = dataValues['cpuType'] == "absolute"
+        axes[nextIndex].set_xlabel(xLabel)
+        axes[nextIndex].set_ylabel('CPU usage ({} %)'.format("absolute" if isCPUDataAbsolute else "normalised"))
+        axes[nextIndex].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+        if isCPUDataAbsolute:
+            axes[nextIndex].set_ylim(ymin=0, ymax=dataValues['mcv'])
+        else:
+            axes[nextIndex].set_ylim(ymin=0, ymax=101.0)
+        axes[nextIndex].set_xlim(xmin=0, xmax=timeValues[-1])
+        nextIndex += 1
+    
+    if not args.norssplot:
+        axes[nextIndex].yaxis.grid(color='lightgray')
+        if args.verticalgrid:
+            axes[nextIndex].xaxis.grid(color='lightgray')
+        if args.areaplot:
+            axes[nextIndex].fill_between(timeValues, dataValues['rv'], color='red', alpha=0.7)
+        else:
+            axes[nextIndex].plot(timeValues, dataValues['rv'], color='red')
+        axes[nextIndex].set_xlabel(xLabel)
 
-        threadsYLabel = "Active Thread Count"
-        axes[2].set_ylabel(threadsYLabel)
-        axes[2].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
-
-    if isCPUDataAbsolute:
-        axes[0].set_ylim(ymin=0, ymax=dataValues['mcv'])
-    else:
-        axes[0].set_ylim(ymin=0, ymax=101.0)
-    axes[0].set_xlim(xmin=0, xmax=timeValues[-1])
-    axes[1].set_ylim(ymin=0, ymax=None)
-    axes[1].set_xlim(xmin=0, xmax=timeValues[-1])
+        rssYLabel = "Memory RSS ({})".format("MB" if dataValues['ru'] == "mb" else "GB")
+        axes[nextIndex].set_ylabel(rssYLabel)
+        axes[nextIndex].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+        axes[nextIndex].set_ylim(ymin=0, ymax=None)
+        axes[nextIndex].set_xlim(xmin=0, xmax=timeValues[-1])
+        nextIndex += 1
 
     if haveThreadCounts:
-        axes[2].set_xlim(xmin=0, xmax=None)
+        axes[nextIndex].yaxis.grid(color='lightgray')
+        if args.verticalgrid:
+            axes[nextIndex].xaxis.grid(color='lightgray')
+        if args.areaplot:
+            axes[nextIndex].fill_between(timeValues, dataValues['tcv'], color='green', alpha=0.7)
+        else:
+            axes[nextIndex].plot(timeValues, dataValues['tcv'], color='green')
+        axes[nextIndex].set_xlabel(xLabel)
 
+        axes[nextIndex].set_ylabel("Active Thread Count")
+        axes[nextIndex].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+        axes[nextIndex].set_ylim(ymin=0, ymax=None)
+        axes[nextIndex].set_xlim(xmin=0, xmax=timeValues[-1])
+        nextIndex += 1
+
+    if haveFDCounts:
+        axes[nextIndex].yaxis.grid(color='lightgray')
+        if args.verticalgrid:
+            axes[nextIndex].xaxis.grid(color='lightgray')
+        if args.areaplot:
+            axes[nextIndex].fill_between(timeValues, dataValues['fdcv'], color='gold', alpha=0.7)
+        else:
+            axes[nextIndex].plot(timeValues, dataValues['fdcv'], color='gold')
+        axes[nextIndex].set_xlabel(xLabel)
+
+        axes[nextIndex].set_ylabel("Open File Descriptor Count")
+        axes[nextIndex].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+        axes[nextIndex].set_ylim(ymin=0, ymax=None)
+        axes[nextIndex].set_xlim(xmin=0, xmax=timeValues[-1])
+    
     fig.tight_layout()
 
     plt.show()
@@ -258,20 +312,24 @@ if __name__ == '__main__':
                     description='Draws a plot of the data the main psrec program recorded, using Python and matplotlib',)
     
     parser.add_argument("inputFile", help="The input filename containing the raw data recording to plot.")
-    parser.add_argument("--combined", action='store_true', help="Plot the recorded values in a combined single plot.")
-    parser.add_argument("--areaplot", action='store_true', help="Plot the values as solid areas, rather than line plots.")
-    parser.add_argument("--verticalgrid", action='store_true', help="Draw vertical grid lines for the Time axis.")
+    parser.add_argument("--combined", action='store_true', default=False, help="Plot the recorded values in a combined single plot.")
+    parser.add_argument("--areaplot", action='store_true', default=False, help="Plot the values as solid areas, rather than line plots.")
+    parser.add_argument("--verticalgrid", action='store_true', default=False, help="Draw vertical grid lines for the Time axis.")
+    parser.add_argument("--nocpuplot", action='store_true', default=False, help="Don't add a plot for CPU usage.")
+    parser.add_argument("--norssplot", action='store_true', default=False, help="Don't add a plot for RSS memory usage.")
+    parser.add_argument("--nothreadcountplot", action='store_true', default=False, help="Don't add a plot for Thread count.")
+    parser.add_argument("--nofiledescriptorplot", action='store_true', default=False, help="Don't add a plot for Open File Descriptor count.")
 
     args = parser.parse_args()
 
     dataValues = readDataValuesFromCSVFile(args.inputFile)
 
     if not dataValues:
-        print("Error: No valid recording data was found in the file specified to be plotted.");
+        print("Error: No valid recording data was found in the file specified to be plotted.")
         exit(-1)
 
     if args.combined:
-        generateBasicCombinedPlot(dataValues, args.areaplot, args.verticalgrid)
+        generateBasicCombinedPlot(dataValues, args)
     else:
-        generateBasicSeparatePlot(dataValues, args.areaplot, args.verticalgrid)
+        generateBasicSeparatePlot(dataValues, args)
     

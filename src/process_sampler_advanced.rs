@@ -24,7 +24,9 @@ use std::time::Instant;
 //       to extract more advanced info.
 
 pub struct ProcessSamplerAdvanced {
-    //recorder_params: ProcessRecordParams,
+    recorder_params: ProcessRecordParams,
+    
+    // actual process handle
     process: Process,
 
     // cached stuff 
@@ -44,7 +46,7 @@ pub struct ProcessSamplerAdvanced {
 }
 
 impl ProcessSamplerAdvanced {
-    pub fn new(_recorder_params: ProcessRecordParams, pid: u32) -> Option<ProcessSamplerAdvanced> {
+    pub fn new(recorder_params: ProcessRecordParams, pid: u32) -> Option<ProcessSamplerAdvanced> {
         let process = Process::new(pid as i32);
         if let Err(err) = process {
             eprintln!("Error accessing process pid: {}, {}", pid, err);
@@ -68,15 +70,15 @@ impl ProcessSamplerAdvanced {
         let instant = Instant::now();
         let stat = stat.as_ref().unwrap();
     
-        Some(ProcessSamplerAdvanced { //recorder_params, 
-                                    process,
-                                    tps,
-                                    page_size,
-                                    last_utime: stat.utime,
-                                    last_stime: stat.stime,
-                                    last_cutime: stat.cutime as u64,
-                                    last_cstime: stat.cstime as u64,
-                                    last_time_instant: instant
+        Some(ProcessSamplerAdvanced { recorder_params, 
+                                      process,
+                                      tps,
+                                      page_size,
+                                      last_utime: stat.utime,
+                                      last_stime: stat.stime,
+                                      last_cutime: stat.cutime as u64,
+                                      last_cstime: stat.cstime as u64,
+                                      last_time_instant: instant
                                        })
     }
 }
@@ -113,6 +115,13 @@ impl ProcessSampler for ProcessSamplerAdvanced {
 
         let thread_count = stat.num_threads as u32;
 
+        let mut open_fd_count = None;
+        if self.recorder_params.record_open_fd_count {
+            if let Ok(fd_count) = self.process.fd_count() {
+                open_fd_count = Some(fd_count as u32);
+            }
+        }
+
         // replace cached values
         self.last_time_instant = instant;
         self.last_utime = stat.utime;
@@ -121,7 +130,7 @@ impl ProcessSampler for ProcessSamplerAdvanced {
         self.last_cstime = stat.cstime as u64;
 
         // set 0.0 as the time, it will be replaced later...
-        let new_sample = Sample { elapsed_time: 0.0, cpu_usage: cpu_usage as f32, curr_rss: full_rss, thread_count };
+        let new_sample = Sample { elapsed_time: 0.0, cpu_usage: cpu_usage as f32, curr_rss: full_rss, thread_count, fd_count: open_fd_count };
         Some(new_sample)
     }
 }

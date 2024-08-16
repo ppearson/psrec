@@ -33,6 +33,9 @@ pub struct Sample {
     // number of process threads
     pub thread_count:       u32,
 
+    // number of open file descriptors (will be both sockets and files)
+    pub fd_count:           Option<u32>,
+
 //    pub peak_rss:           u64,
 }
 
@@ -46,6 +49,8 @@ pub struct ProcessRecording {
 
     // whether we're recording the number of process threads...
     pub have_thread_counts:     bool,
+
+    pub have_fd_counts:         bool,
 
     pub initial_process_id:     u32,
     pub current_process_id:     u32,
@@ -69,6 +74,7 @@ impl ProcessRecording {
         ProcessRecording { start_timestamp: Local::now(),
                            normalised_cpu_usage: recorder_params.normalise_cpu_usage,
                            have_thread_counts: recorder_params.record_thread_count,
+                           have_fd_counts: recorder_params.record_open_fd_count,
                            initial_process_id,
                            current_process_id: initial_process_id,
                            num_system_threads: num_threads,
@@ -88,10 +94,20 @@ impl ProcessRecording {
             writeln!(buf_writer, "# Process recording.").unwrap();
 
             if self.have_thread_counts {
-                writeln!(buf_writer, "# Time elapsed,CPU Usage,RSS,Thread Count").unwrap();
+                if self.have_fd_counts {
+                    writeln!(buf_writer, "# Time elapsed,CPU Usage,RSS,Thread Count,FD Count").unwrap();
+                }
+                else {
+                    writeln!(buf_writer, "# Time elapsed,CPU Usage,RSS,Thread Count").unwrap();
+                }
             }
             else {
-                writeln!(buf_writer, "# Time elapsed,CPU Usage,RSS").unwrap();
+                if self.have_fd_counts {
+                    writeln!(buf_writer, "# Time elapsed,CPU Usage,RSS,FD Count").unwrap();
+                }
+                else {
+                    writeln!(buf_writer, "# Time elapsed,CPU Usage,RSS").unwrap();
+                }
             }
 
             writeln!(buf_writer, "#@ cputype: {}", if self.normalised_cpu_usage { "normalised" } else { "absolute" }).unwrap();
@@ -99,13 +115,28 @@ impl ProcessRecording {
         }
 
         if self.have_thread_counts {
-            for sample in &self.samples {
-                writeln!(buf_writer, "{:.1},{:.1},{},{}", sample.elapsed_time, sample.cpu_usage, sample.curr_rss, sample.thread_count).unwrap();
+            if self.have_fd_counts {
+                for sample in &self.samples {
+                    writeln!(buf_writer, "{:.1},{:.1},{},{},{}", sample.elapsed_time, sample.cpu_usage, sample.curr_rss, sample.thread_count,
+                                           sample.fd_count.unwrap()).unwrap();
+                }
+            }
+            else {
+                for sample in &self.samples {
+                    writeln!(buf_writer, "{:.1},{:.1},{},{}", sample.elapsed_time, sample.cpu_usage, sample.curr_rss, sample.thread_count).unwrap();
+                }
             }
         }
         else {
-            for sample in &self.samples {
-                writeln!(buf_writer, "{:.1},{:.1},{}", sample.elapsed_time, sample.cpu_usage, sample.curr_rss).unwrap();
+            if self.have_fd_counts {
+                for sample in &self.samples {
+                    writeln!(buf_writer, "{:.1},{:.1},{},{}", sample.elapsed_time, sample.cpu_usage, sample.curr_rss, sample.fd_count.unwrap()).unwrap();
+                }
+            }
+            else {
+                for sample in &self.samples {
+                    writeln!(buf_writer, "{:.1},{:.1},{}", sample.elapsed_time, sample.cpu_usage, sample.curr_rss).unwrap();
+                }
             }
         }
 

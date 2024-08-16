@@ -32,6 +32,7 @@ pub fn convert_time_period_string_to_ms(str_val: &str) -> Option<(u64, String)> 
             // and accumulate the chr
             unit.push(chr);
         }
+        // TODO: maybe else and break to be more robust?
     }
 
     // need to reverse the unit in case it was "ms"
