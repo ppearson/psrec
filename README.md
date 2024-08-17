@@ -6,10 +6,11 @@ psrec is a small, stand-alone (at least for recording) command line application 
 * CPU usage (either as normalised or absolute values)
 * Memory usage (RSS)
 * Process thread count
+* Open File Descriptor count (Linux-only currently)
 
 It's essentially a compiled (using Rust) application very similar in use-case to psrecord which exists for Python.
 
-Currently visualisation of the resulting recorded data needs to be done externally via a provided Python script which uses `matplotlib``, and the main psrec executable can save the results to a .csv file.
+Currently visualisation of the resulting recorded data needs to be done externally via a provided Python script which uses `matplotlib`, and the main psrec executable can save the results to a .csv file.
 
 Usage
 =====
@@ -29,6 +30,7 @@ Additional option args that are supported:
 * `--normalise-cpu-usage`: If specified, psrec will normalise the CPU usage sample values to the number of threads on the machine (so full CPU usage on all cores/threads will be 100%). By default it does not, and produces absolute CPU usage sample values.
 * `--record_child_processes`: If specified, psrec will include stats for child processes as well as the main process.
 * `--record_thread_count`: If specified, psrec will also record additional information about the thread count of the process.
+* `--record_file_descriptor_count`: If specified, psrec will also record additional information about the open file descriptor count of the process. Linux-only currently.
 
 Attach Mode - Attaching to an existing process
 ----------------------------------------------
@@ -57,3 +59,9 @@ Running:
     python3 psrec_gen_plot.py <path_to_results_file.csv>
 
 With Python with matplotlib libs installed, should display a chart of the results (should work with Python 2 and 3).
+
+Additional option args that are supported to control the plot visualisation:
+
+* `--areaplot`: Draw each plot with the graphed value shape filled in with solid colour as an "area" plot.
+* `--nocpuplot`: Don't include the default CPU plot.
+* `--norssplot`: Don't include the default memory RSS plot.

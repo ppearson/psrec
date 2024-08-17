@@ -1,6 +1,12 @@
 TODO
 ====
 
+Possible Issues
+---------------
+
+* When capturing on Linux with the ProcessSamplerAdvanced sampler, the first captured CPU usage
+  sample value at elapsed time 0 is often wrong (too big).
+
 Future enhancements
 -------------------
 
@@ -12,6 +18,7 @@ Future enhancements
 
 (Possible, but lower-priority)
 
+* Better support on non-Linux platforms.
 * Recording of other process metrics, like Disk/Network I/O.
 * Other additional means of visualising data: gnuplot export? built-in visualisation (Plotters crate)?
 * Other export file formats. (json?)

@@ -1,3 +1,9 @@
+Version 0.9.3
+-------------
+
+* Added support for recording the number of open file descriptors of a process (Linux-only currently).
+* Refactoring of psrec_gen_plot.py plotting script to be a bit more configurable.
+
 Version 0.9.2
 -------------
 
