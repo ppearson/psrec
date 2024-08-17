@@ -193,10 +193,21 @@ def generateBasicCombinedPlot(dataValues, args):
     ax2.set_xlim(xmin=0, xmax=timeValues[-1])
     plt.show()
 
+def get_single_axis(axes, index):
+    '''
+    Helper function to get an axis object, so as to be able to generically
+    cope with both a subscriptable set of axes, or a single one
+    '''
+    if hasattr(axes, '__getitem__'):
+        return axes[index]
+    else:
+        return axes
+
 def generateBasicSeparatePlot(dataValues, args):
     haveThreadCounts = len(dataValues['tcv']) > 0 and not args.nothreadcountplot
     haveFDCounts = len(dataValues['fdcv']) > 0 and not args.nofiledescriptorplot
 
+    # we start with the default built-in CPU and RSS data plots
     numPlots = 2
     titleItems = []
     if args.nocpuplot:
@@ -214,11 +225,9 @@ def generateBasicSeparatePlot(dataValues, args):
         numPlots += 1
         titleItems.append("Open FD count")
     
-    # there's no point plotting 0 items, and currently we don't support only plotting 1
-    # either as axes is not a subscriptable array in that scenario, so the code below doesn't
-    # support that currently.
-    if numPlots <= 1:
-        print("Error: psrec_gen_plot currently only supports plotting two or more plots at once.")
+    # there's no point plotting 0 items.
+    if numPlots == 0:
+        print("Error: No plots selected to be plotted. If you are overriding the plots to be specified, there has to be at least one plot of data.")
         exit(-1)
 
     fig, axes = plt.subplots(numPlots, 1)
@@ -235,72 +244,72 @@ def generateBasicSeparatePlot(dataValues, args):
 
     nextIndex = 0
     if not args.nocpuplot:
-        axes[nextIndex].yaxis.grid(color='lightgray')
+        thisAxis = get_single_axis(axes, nextIndex)
+        thisAxis.yaxis.grid(color='lightgray')
         if args.verticalgrid:
-            axes[nextIndex].xaxis.grid(color='lightgray')
+            thisAxis.xaxis.grid(color='lightgray')
         if args.areaplot:
-            axes[nextIndex].fill_between(timeValues, dataValues['cv'], color='blue', alpha=0.7)
+            thisAxis.fill_between(timeValues, dataValues['cv'], color='blue', alpha=0.7)
         else:
-            axes[nextIndex].plot(timeValues, dataValues['cv'], color='blue')
-        
+            thisAxis.plot(timeValues, dataValues['cv'], color='blue')
         isCPUDataAbsolute = dataValues['cpuType'] == "absolute"
-        axes[nextIndex].set_xlabel(xLabel)
-        axes[nextIndex].set_ylabel('CPU usage ({} %)'.format("absolute" if isCPUDataAbsolute else "normalised"))
-        axes[nextIndex].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+        thisAxis.set_xlabel(xLabel)
+        thisAxis.set_ylabel('CPU usage ({} %)'.format("absolute" if isCPUDataAbsolute else "normalised"))
+        thisAxis.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
         if isCPUDataAbsolute:
-            axes[nextIndex].set_ylim(ymin=0, ymax=dataValues['mcv'])
+            thisAxis.set_ylim(ymin=0, ymax=dataValues['mcv'])
         else:
-            axes[nextIndex].set_ylim(ymin=0, ymax=101.0)
-        axes[nextIndex].set_xlim(xmin=0, xmax=timeValues[-1])
+            thisAxis.set_ylim(ymin=0, ymax=101.0)
+        thisAxis.set_xlim(xmin=0, xmax=timeValues[-1])
         nextIndex += 1
     
     if not args.norssplot:
-        axes[nextIndex].yaxis.grid(color='lightgray')
+        thisAxis = get_single_axis(axes, nextIndex)
+        thisAxis.yaxis.grid(color='lightgray')
         if args.verticalgrid:
-            axes[nextIndex].xaxis.grid(color='lightgray')
+            thisAxis.xaxis.grid(color='lightgray')
         if args.areaplot:
-            axes[nextIndex].fill_between(timeValues, dataValues['rv'], color='red', alpha=0.7)
+            thisAxis.fill_between(timeValues, dataValues['rv'], color='red', alpha=0.7)
         else:
-            axes[nextIndex].plot(timeValues, dataValues['rv'], color='red')
-        axes[nextIndex].set_xlabel(xLabel)
-
+            thisAxis.plot(timeValues, dataValues['rv'], color='red')
+        thisAxis.set_xlabel(xLabel)
         rssYLabel = "Memory RSS ({})".format("MB" if dataValues['ru'] == "mb" else "GB")
-        axes[nextIndex].set_ylabel(rssYLabel)
-        axes[nextIndex].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
-        axes[nextIndex].set_ylim(ymin=0, ymax=None)
-        axes[nextIndex].set_xlim(xmin=0, xmax=timeValues[-1])
+        thisAxis.set_ylabel(rssYLabel)
+        thisAxis.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+        thisAxis.set_ylim(ymin=0, ymax=None)
+        thisAxis.set_xlim(xmin=0, xmax=timeValues[-1])
         nextIndex += 1
 
     if haveThreadCounts:
-        axes[nextIndex].yaxis.grid(color='lightgray')
+        thisAxis = get_single_axis(axes, nextIndex)
+        thisAxis.yaxis.grid(color='lightgray')
         if args.verticalgrid:
-            axes[nextIndex].xaxis.grid(color='lightgray')
+            thisAxis.xaxis.grid(color='lightgray')
         if args.areaplot:
-            axes[nextIndex].fill_between(timeValues, dataValues['tcv'], color='green', alpha=0.7)
+            thisAxis.fill_between(timeValues, dataValues['tcv'], color='green', alpha=0.7)
         else:
-            axes[nextIndex].plot(timeValues, dataValues['tcv'], color='green')
-        axes[nextIndex].set_xlabel(xLabel)
-
-        axes[nextIndex].set_ylabel("Active Thread Count")
-        axes[nextIndex].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
-        axes[nextIndex].set_ylim(ymin=0, ymax=None)
-        axes[nextIndex].set_xlim(xmin=0, xmax=timeValues[-1])
+            thisAxis.plot(timeValues, dataValues['tcv'], color='green')
+        thisAxis.set_xlabel(xLabel)
+        thisAxis.set_ylabel("Active Thread Count")
+        thisAxis.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+        thisAxis.set_ylim(ymin=0, ymax=None)
+        thisAxis.set_xlim(xmin=0, xmax=timeValues[-1])
         nextIndex += 1
 
     if haveFDCounts:
-        axes[nextIndex].yaxis.grid(color='lightgray')
+        thisAxis = get_single_axis(axes, nextIndex)
+        thisAxis.yaxis.grid(color='lightgray')
         if args.verticalgrid:
-            axes[nextIndex].xaxis.grid(color='lightgray')
+            thisAxis.xaxis.grid(color='lightgray')
         if args.areaplot:
-            axes[nextIndex].fill_between(timeValues, dataValues['fdcv'], color='gold', alpha=0.7)
+            thisAxis.fill_between(timeValues, dataValues['fdcv'], color='gold', alpha=0.7)
         else:
-            axes[nextIndex].plot(timeValues, dataValues['fdcv'], color='gold')
-        axes[nextIndex].set_xlabel(xLabel)
-
-        axes[nextIndex].set_ylabel("Open File Descriptor Count")
-        axes[nextIndex].get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
-        axes[nextIndex].set_ylim(ymin=0, ymax=None)
-        axes[nextIndex].set_xlim(xmin=0, xmax=timeValues[-1])
+            thisAxis.plot(timeValues, dataValues['fdcv'], color='gold')
+        thisAxis.set_xlabel(xLabel)
+        thisAxis.set_ylabel("Open File Descriptor Count")
+        thisAxis.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+        thisAxis.set_ylim(ymin=0, ymax=None)
+        thisAxis.set_xlim(xmin=0, xmax=timeValues[-1])
     
     fig.tight_layout()
 
