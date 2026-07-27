@@ -83,13 +83,14 @@ impl ProcessRecordParams {
         }
 
         if let Some(record_duration_string) = record_duration {
+            // TODO: do we really want to allow the duration to be sub 1 second? Maybe we should stop that?
             if let Some(duration_ms) = convert_time_period_string_to_ms(&record_duration_string) {
                 params.record_duration = Some(duration_ms.0);
                 params.record_duration_human = duration_ms.1;
             }
             else {
                 eprintln!("Error parsing record duration string specified: '{}'", record_duration_string);
-                eprintln!("Using default of no time duriation.");
+                eprintln!("Using default of no time duration limit.");
             }
         }
         
@@ -283,9 +284,11 @@ impl ProcessRecorder for ProcessRecorderAttach {
 
         // this is a little bit silly, but we only want to pay the overhead if strictly necessary, so split the code
         // paths so we're ultra-efficient while recording...
-        if let Some(record_duration_limit) = self.core.recorder_params.record_duration {
+        if let Some(record_duration_limit_ms) = self.core.recorder_params.record_duration {
             // we have a duration limit, so...
-            let duration_limit_secs = record_duration_limit as f32;
+
+            // TODO: error handling...
+            let start_time = self.core.start_time.unwrap();
 
             while self.core.process_is_running() {
                 self.core.record_sample();
@@ -298,13 +301,16 @@ impl ProcessRecorder for ProcessRecorderAttach {
                 // TODO: this suffers from a tiny bit of drift...
                 std::thread::sleep(sleep_duration);
 
-                // TODO: error handling...
-                let start_time = self.core.start_time.as_ref().unwrap();
                 let elapsed_time = start_time.elapsed();
-                // TODO: error handling...
-                if elapsed_time.unwrap().as_secs_f32() >= duration_limit_secs {
-                    eprintln!("Recording duration limit reached, recording has stopped (process might continue running).");
-                    return true;
+                if let Ok(elapsed_time) = elapsed_time {
+                    if elapsed_time.as_millis() as u64 >= record_duration_limit_ms {
+                        eprintln!("Recording duration limit reached, recording has stopped (process might continue running).");
+                        return true;
+                    }
+                }
+                else {
+                    eprintln!("Error calculating time duration: {}", elapsed_time.err().unwrap());
+                    return false;
                 }
             }
         }
@@ -423,9 +429,11 @@ impl ProcessRecorder for ProcessRecorderRun {
 
             // this is a little bit silly, but we only want to pay the overhead if strictly necessary, so split the code
             // paths so we're ultra-efficient while recording...
-            if let Some(record_duration_limit) = self.core.recorder_params.record_duration {
+            if let Some(record_duration_limit_ms) = self.core.recorder_params.record_duration {
                 // we have a duration limit, so...
-                let duration_limit_ms = record_duration_limit as f64;
+
+                // TODO: error handling...
+                let start_time = self.core.start_time.unwrap();
 
                 while self.check_process_is_running() {
                     self.core.record_sample();
@@ -438,13 +446,16 @@ impl ProcessRecorder for ProcessRecorderRun {
                     // TODO: this suffers from a tiny bit of drift...
                     std::thread::sleep(sleep_duration);
 
-                    // TODO: error handling...
-                    let start_time = self.core.start_time.as_ref().unwrap();
                     let elapsed_time = start_time.elapsed();
-                    // TODO: error handling...
-                    if elapsed_time.unwrap().as_secs_f64() >= duration_limit_ms {
-                        eprintln!("Recording duration limit reached, recording has stopped (process might continue running).");
-                        return true;
+                    if let Ok(elapsed_time) = elapsed_time {
+                        if elapsed_time.as_millis() as u64 >= record_duration_limit_ms {
+                            eprintln!("Recording duration limit reached, recording has stopped (process might continue running).");
+                            return true;
+                        }
+                    }
+                    else {
+                        eprintln!("Error calculating time duration: {}", elapsed_time.err().unwrap());
+                        return false;
                     }
                 }
             }
