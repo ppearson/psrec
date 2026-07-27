@@ -162,7 +162,7 @@ def generateBasicCombinedPlot(dataValues, args):
     ax1.set_title('Process recording (CPU usage and RSS memory usage)')
     xLabel = "Time elapsed ({})".format("Minutes" if dataValues['tu'] == "m" else "Hours" if dataValues['tu'] == "h" else "Seconds")
     ax1.set_xlabel(xLabel)
-    if args.areaPlot:
+    if args.areaplot:
         ax1.fill_between(timeValues, dataValues['cv'], color='blue', alpha=0.6)
         ax2.fill_between(timeValues, dataValues['rv'], color='red', alpha=0.6)
     else:
@@ -179,7 +179,7 @@ def generateBasicCombinedPlot(dataValues, args):
     ax2.get_yaxis().set_major_formatter(mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
     
     ax1.yaxis.grid(color='lightgray')
-    if args.verticalGridLines:
+    if args.verticalgrid:
         ax1.xaxis.grid(color='lightgray')
 
     fig.tight_layout()
